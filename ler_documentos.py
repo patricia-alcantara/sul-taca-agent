@@ -1,10 +1,13 @@
 from pathlib import Path
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from pypdf import PdfReader
 
 
 PASTA_DOCUMENTOS = Path(__file__).parent / "documentos"
 
+TAMANHO_CHUNK = 1000
+SOBREPOSICAO_CHUNK = 300
 
 def encontrar_pdfs(pasta: Path) -> list[Path]:
     return sorted(pasta.glob("*.pdf"))
@@ -25,6 +28,31 @@ def extrair_paginas(arquivo_pdf: Path) -> list[dict]:
 
     return paginas_extraidas
 
+def dividir_em_chunks(paginas: list[dict]) -> list[dict]:
+    divisor = RecursiveCharacterTextSplitter(
+        chunk_size=TAMANHO_CHUNK,
+        chunk_overlap=SOBREPOSICAO_CHUNK,
+    )
+
+    chunks = []
+
+    for pagina in paginas:
+        textos_divididos = divisor.split_text(pagina["texto"])
+
+        for numero_chunk, texto_chunk in enumerate(
+            textos_divididos,
+            start=1,
+        ):
+            chunks.append(
+                {
+                    "documento": pagina["documento"],
+                    "pagina": pagina["pagina"],
+                    "chunk": numero_chunk,
+                    "texto": texto_chunk,
+                }
+            )
+
+    return chunks
 
 def exibir_resultado(
     arquivo_pdf: Path,
@@ -55,6 +83,15 @@ def main() -> None:
 
     print(f"Total de páginas processadas: {len(todas_as_paginas)}")
 
+    chunks = dividir_em_chunks(todas_as_paginas)
 
+    print(f"Total de chunks gerados: {len(chunks)}")
+
+    if chunks:
+        tamanhos = [len(chunk["texto"]) for chunk in chunks]
+
+        print(f"Menor chunk: {min(tamanhos)} caracteres")
+        print(f"Maior chunk: {max(tamanhos)} caracteres")
+        
 if __name__ == "__main__":
     main()
