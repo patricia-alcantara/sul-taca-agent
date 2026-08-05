@@ -10,41 +10,50 @@ def encontrar_pdfs(pasta: Path) -> list[Path]:
     return sorted(pasta.glob("*.pdf"))
 
 
-def extrair_texto(arquivo_pdf: Path) -> tuple[str, int]:
+def extrair_paginas(arquivo_pdf: Path) -> list[dict]:
     leitor = PdfReader(arquivo_pdf)
+    paginas_extraidas = []
 
-    texto = "\n".join(
-        pagina.extract_text() or ""
-        for pagina in leitor.pages
-    )
+    for numero_pagina, pagina in enumerate(leitor.pages, start=1):
+        paginas_extraidas.append(
+            {
+                "documento": arquivo_pdf.name,
+                "pagina": numero_pagina,
+                "texto": pagina.extract_text() or "",
+            }
+        )
 
-    return texto, len(leitor.pages)
+    return paginas_extraidas
 
 
 def exibir_resultado(
     arquivo_pdf: Path,
-    texto: str,
-    quantidade_paginas: int,
+    paginas_extraidas: list[dict],
 ) -> None:
+    quantidade_caracteres = sum(
+        len(pagina["texto"])
+        for pagina in paginas_extraidas
+    )
+
     print(
         f"- {arquivo_pdf.name}: "
-        f"{quantidade_paginas} página(s), "
-        f"{len(texto)} caracteres extraídos"
+        f"{len(paginas_extraidas)} página(s), "
+        f"{quantidade_caracteres} caracteres extraídos"
     )
 
 
 def main() -> None:
     arquivos_pdf = encontrar_pdfs(PASTA_DOCUMENTOS)
+    todas_as_paginas = []
 
     print(f"PDFs encontrados: {len(arquivos_pdf)}")
 
     for arquivo_pdf in arquivos_pdf:
-        texto, quantidade_paginas = extrair_texto(arquivo_pdf)
-        exibir_resultado(
-            arquivo_pdf,
-            texto,
-            quantidade_paginas,
-        )
+        paginas_extraidas = extrair_paginas(arquivo_pdf)
+        todas_as_paginas.extend(paginas_extraidas)
+        exibir_resultado(arquivo_pdf, paginas_extraidas)
+
+    print(f"Total de páginas processadas: {len(todas_as_paginas)}")
 
 
 if __name__ == "__main__":
