@@ -4,11 +4,13 @@ from pypdf import PdfReader
 
 
 PASTA_DOCUMENTOS = Path(__file__).parent / "documentos"
-arquivos_pdf = sorted(PASTA_DOCUMENTOS.glob("*.pdf"))
 
-print(f"PDFs encontrados: {len(arquivos_pdf)}")
 
-for arquivo_pdf in arquivos_pdf:
+def encontrar_pdfs(pasta: Path) -> list[Path]:
+    return sorted(pasta.glob("*.pdf"))
+
+
+def extrair_texto(arquivo_pdf: Path) -> tuple[str, int]:
     leitor = PdfReader(arquivo_pdf)
 
     texto = "\n".join(
@@ -16,8 +18,34 @@ for arquivo_pdf in arquivos_pdf:
         for pagina in leitor.pages
     )
 
+    return texto, len(leitor.pages)
+
+
+def exibir_resultado(
+    arquivo_pdf: Path,
+    texto: str,
+    quantidade_paginas: int,
+) -> None:
     print(
         f"- {arquivo_pdf.name}: "
-        f"{len(leitor.pages)} página(s), "
+        f"{quantidade_paginas} página(s), "
         f"{len(texto)} caracteres extraídos"
     )
+
+
+def main() -> None:
+    arquivos_pdf = encontrar_pdfs(PASTA_DOCUMENTOS)
+
+    print(f"PDFs encontrados: {len(arquivos_pdf)}")
+
+    for arquivo_pdf in arquivos_pdf:
+        texto, quantidade_paginas = extrair_texto(arquivo_pdf)
+        exibir_resultado(
+            arquivo_pdf,
+            texto,
+            quantidade_paginas,
+        )
+
+
+if __name__ == "__main__":
+    main()
