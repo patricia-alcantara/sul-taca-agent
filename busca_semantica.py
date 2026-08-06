@@ -142,21 +142,28 @@ def main() -> None:
     vetores = gerar_embeddings(chunks, cliente)
     indice = criar_indice(vetores)
 
-    pergunta = input("\nDigite sua pergunta: ").strip()
+    print("\nSul Taça pronta. Digite sua pergunta ou escreva 'sair' para encerrar.")
 
-    if not pergunta:
-        print("Nenhuma pergunta foi informada.")
-        return
+    while True:
+        pergunta = input("\nVocê: ").strip()
 
-    resposta = responder_pergunta(
-        pergunta,
-        chunks,
-        indice,
-        cliente,
-    )
+        if pergunta.lower() == "sair":
+            print("\nSessão encerrada.")
+            break
 
-    print("\nResposta do Gemini:")
-    print(resposta)
+        if not pergunta:
+            print("Digite uma pergunta para continuar.")
+            continue
+
+        resposta = responder_pergunta(
+            pergunta,
+            chunks,
+            indice,
+            cliente,
+        )
+
+        print("\nSul Taça:")
+        print(resposta)
 
 if __name__ == "__main__":
     main()
