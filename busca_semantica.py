@@ -70,38 +70,78 @@ def gerar_embedding_pergunta(
 
     return vetor
 
+def montar_contexto(
+    chunks: list[dict],
+    posicoes: np.ndarray,
+) -> str:
+    trechos = []
+
+    for posicao in posicoes[0]:
+        chunk = chunks[posicao]
+
+        trecho = (
+            f"Fonte: {chunk['documento']}, "
+            f"página {chunk['pagina']}\n"
+            f"{chunk['texto']}"
+        )
+
+        trechos.append(trecho)
+
+    return "\n\n---\n\n".join(trechos)
+
+def gerar_resposta(
+    pergunta: str,
+    contexto: str,
+    cliente,
+) -> str:
+    prompt = f"""
+Você é um assistente da loja de vinhos Sul Taça.
+
+Responda em português usando exclusivamente as informações fornecidas no contexto.
+Não invente produtos, preços, estoque, políticas ou características.
+Não atribua certificações, selos ou garantias que não estejam explicitamente
+no contexto. Se estiver escrito apenas "Vegano: Sim", diga somente que o vinho
+é vegano.
+Se o contexto não contiver informação suficiente, diga claramente que não encontrou
+essa informação nos documentos da Sul Taça.
+Se fizer uma recomendação, explique brevemente o motivo.
+Ao final, informe o documento e a página usados como fonte.
+
+CONTEXTO:
+{contexto}
+
+PERGUNTA:
+{pergunta}
+"""
+
+    resultado = cliente.models.generate_content(
+        model="gemini-3.6-flash",
+        contents=prompt,
+    )
+
+    return resultado.text
+
 def main() -> None:
     load_dotenv()
     cliente = genai.Client()
 
     chunks = carregar_chunks()
-    print(f"Chunks carregados para busca: {len(chunks)}")
-
     vetores = gerar_embeddings(chunks, cliente)
     indice = criar_indice(vetores)
-    print(f"Vetores armazenados no índice: {indice.ntotal}")
-    print(f"Formato da matriz de embeddings: {vetores.shape}")
 
-    pergunta = "Quero um vinho vegano para acompanhar risoto de cogumelos."
+    pergunta = input("\nDigite sua pergunta: ").strip()
+
+    if not pergunta:
+        print("Nenhuma pergunta foi informada.")
+        return
 
     vetor_pergunta = gerar_embedding_pergunta(pergunta, cliente)
     pontuacoes, posicoes = indice.search(vetor_pergunta, k=3)
+    contexto = montar_contexto(chunks, posicoes)
+    resposta = gerar_resposta(pergunta, contexto, cliente)
 
-    print(f"\nPergunta: {pergunta}")
-    print("\nResultados mais próximos:")
+    print("\nResposta do Gemini:")
+    print(resposta)
 
-    for ordem, (posicao, pontuacao) in enumerate(
-        zip(posicoes[0], pontuacoes[0]),
-        start=1,
-    ):
-        chunk = chunks[posicao]
-
-        print(
-            f"\n{ordem}. {chunk['documento']} "
-            f"| página {chunk['pagina']} "
-            f"| similaridade {pontuacao:.3f}"
-        )
-        print(chunk["texto"][:500])
-        
 if __name__ == "__main__":
     main()
