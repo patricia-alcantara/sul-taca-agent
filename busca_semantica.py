@@ -121,6 +121,19 @@ PERGUNTA:
 
     return resultado.text
 
+def responder_pergunta(
+    pergunta: str,
+    chunks: list[dict],
+    indice,
+    cliente,
+) -> str:
+    vetor_pergunta = gerar_embedding_pergunta(pergunta, cliente)
+    _, posicoes = indice.search(vetor_pergunta, k=3)
+
+    contexto = montar_contexto(chunks, posicoes)
+
+    return gerar_resposta(pergunta, contexto, cliente)
+
 def main() -> None:
     load_dotenv()
     cliente = genai.Client()
@@ -135,10 +148,12 @@ def main() -> None:
         print("Nenhuma pergunta foi informada.")
         return
 
-    vetor_pergunta = gerar_embedding_pergunta(pergunta, cliente)
-    pontuacoes, posicoes = indice.search(vetor_pergunta, k=3)
-    contexto = montar_contexto(chunks, posicoes)
-    resposta = gerar_resposta(pergunta, contexto, cliente)
+    resposta = responder_pergunta(
+        pergunta,
+        chunks,
+        indice,
+        cliente,
+    )
 
     print("\nResposta do Gemini:")
     print(resposta)
