@@ -34,6 +34,21 @@ def inicializar_rag():
 
     return cliente, chunks, indice
 
+def exibir_resposta_jessi(conteudo: str) -> None:
+    partes = conteudo.rsplit("\n---\n", 1)
+
+    if (
+        len(partes) == 2
+        and "fonte" in partes[1].lower()
+    ):
+        resposta, fonte = partes
+
+        st.markdown(resposta.strip())
+
+        with st.expander("Ver fonte consultada"):
+            st.markdown(fonte.strip())
+    else:
+        st.markdown(conteudo)
 
 st.title("Sul Taça")
 st.caption("Encontre o vinho certo para cada momento.")
@@ -132,8 +147,12 @@ for mensagem in st.session_state.mensagens:
     )
 
     with st.chat_message(papel_streamlit):
-        st.markdown(mensagem["conteudo"])
-
+        if mensagem["papel"] == "jessi":
+            exibir_resposta_jessi(
+                mensagem["conteudo"]
+            )
+        else:
+            st.markdown(mensagem["conteudo"])
 
 pergunta = st.chat_input("Digite sua mensagem")
 
@@ -158,7 +177,7 @@ if pergunta:
                 cliente,
             )
 
-        st.markdown(resposta)
+        exibir_resposta_jessi(resposta)
 
     st.session_state.historico.append(
         {

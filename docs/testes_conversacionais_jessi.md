@@ -333,3 +333,20 @@ A Jessi identificou que faltavam informações para uma recomendação específi
 **Decisão**
 
 Manter a confirmação booleana no MVP. A solução reduz ambiguidades, simplifica o código e impede que o fluxo comercial seja liberado antes da confirmação.
+### Teste 9 — Exibição discreta da fonte
+
+**Entrada**
+
+> Quero um vinho seco.
+
+**Continuação**
+
+> Tinto.
+
+**Resultado**
+
+A Jessi pediu uma informação relevante antes de recomendar, preservou a preferência por vinho seco e indicou um produto compatível.
+
+A fonte permaneceu disponível em um componente recolhível, sem competir visualmente com a resposta principal.
+
+**Status:** aprovado.
