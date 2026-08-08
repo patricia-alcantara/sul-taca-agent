@@ -207,18 +207,27 @@ ou informações já registradas nele.
 
 ## Contexto recuperado dos documentos
 
+Os trechos abaixo são candidatos recuperados por
+similaridade. A presença de um trecho não significa que ele
+responda à pergunta. Utilize somente informações que
+sustentem explicitamente a afirmação feita. Se nenhum trecho
+responder à pergunta exata, informe que não encontrou a
+informação nos documentos.
+
 {contexto}
 
 ## Mensagem atual do usuário
 
 {pergunta}
 
-Responda usando as instruções da Jessi, o histórico da
-conversa e as informações recuperadas dos documentos da
-Sul Taça.
+Responda usando as instruções da Jessi e o histórico da
+conversa. Use os documentos somente para afirmações
+explicitamente sustentadas pelos trechos recuperados.
 
 Quando utilizar uma informação factual dos documentos,
-indique ao final o documento e a página consultados.
+indique ao final somente o documento e a página que
+sustentam diretamente essa informação. Não cite uma fonte
+apenas relacionada ao assunto.
 """
 
     resultado = cliente.models.generate_content(
