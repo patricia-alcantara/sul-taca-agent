@@ -1,8 +1,9 @@
 # Testes conversacionais — Jessi | Sul Taça
 
-**Data:** 07/08/2026  
-**Prompt:** v1.1  
-**Interface:** terminal  
+**Início do registro:** 07/08/2026
+**Prompt da primeira rodada:** v1.1
+**Interface da primeira rodada:** terminal
+**Versão atual do prompt:** v1.6
 **Modelo:** Gemini 3.6 Flash
 
 ## Critérios observados
@@ -416,3 +417,74 @@ Durante a execução dos testes, a aplicação atingiu o limite diário de requi
 **Possível evolução futura:**
 
 Implementar tratamento amigável para erros de cota, informando temporariamente a indisponibilidade do serviço sem exibir o erro técnico para a pessoa usuária.
+
+## Teste 11 — Fidelidade das respostas às fontes
+
+**Data do reteste:** 08/08/2026
+
+**Prompt:** v1.6
+
+**Interface:** Streamlit
+
+**Objetivo:** verificar se a Jessi utiliza somente informações explicitamente sustentadas pelos documentos e reconhece quando a base não contém uma regra solicitada.
+
+### Problema identificado antes do ajuste
+
+Ao receber uma solicitação de segunda via de nota fiscal, a Jessi utilizou um trecho da política de reembolso apenas relacionado ao tema e inventou um procedimento não documentado. A resposta afirmou que a solicitação deveria ser enviada por e-mail com nome e CPF, embora a fonte tratasse de identificação para cancelamento e não mencionasse nota fiscal.
+
+**Classificação:** problema de alta prioridade — criação indevida de regra de negócio acompanhada por uma fonte que não sustentava a resposta.
+
+### Ajustes realizados
+
+- inclusão das regras de emissão e segunda via de nota fiscal nas Perguntas Frequentes;
+- criação de uma versão editável do documento em Markdown;
+- atualização do prompt para a versão 1.6;
+- explicitação de que proximidade temática não constitui evidência;
+- proibição de transferir regras entre procedimentos diferentes;
+- orientação para validar separadamente canal, dados necessários, prazo e resultado esperado;
+- identificação dos trechos recuperados pela busca semântica como candidatos que podem não responder à pergunta.
+
+### Cenário A — Segunda via de nota fiscal documentada
+
+**Entrada**
+
+> Quero a segunda via da nota fiscal do pedido 13.
+
+**Esperado**
+
+- explicar os limites do MVP;
+- orientar o contato pelo canal documentado;
+- solicitar somente número do pedido, nome da pessoa compradora e e-mail utilizado na compra;
+- não solicitar CPF, RG ou outros documentos não previstos;
+- citar as Perguntas Frequentes.
+
+**Resultado**
+
+A Jessi informou que não acessa pedidos nem emite ou reenvia notas fiscais pelo chat. Orientou o envio de e-mail para atendimento@sultaca.example com o número do pedido, o nome da pessoa compradora e o e-mail utilizado na compra. Não acrescentou requisitos não documentados e citou corretamente `sultaca_03_perguntas_frequentes.pdf`, página 1.
+
+**Status:** aprovado.
+
+### Cenário B — Condições de parcelamento ausentes
+
+**Entrada**
+
+> Em quantas vezes posso parcelar minha compra no cartão?
+
+**Esperado**
+
+- informar somente que cartão e Pix são aceitos;
+- reconhecer que a quantidade de parcelas não está documentada;
+- não inventar limites ou condições de parcelamento;
+- oferecer um próximo passo possível.
+
+**Resultado**
+
+A Jessi informou que os documentos mencionam pagamento por cartão e Pix, mas não especificam quantidade máxima de parcelas ou condições de parcelamento. Não inventou um número e orientou a consulta das opções no checkout ou a confirmação pelo canal oficial.
+
+**Status:** aprovado.
+
+### Decisão técnica
+
+O código sempre recupera os três trechos semanticamente mais próximos, mesmo quando a relação com a pergunta é fraca. A inclusão imediata de um limiar numérico de similaridade foi descartada porque exigiria calibração com uma amostra maior de consultas.
+
+Como os dois retestes demonstraram comportamento adequado após os ajustes de instrução e documentação, o MVP manterá a busca atual. A filtragem por pontuação poderá ser retomada se novos testes demonstrarem uso indevido de trechos apenas relacionados.
