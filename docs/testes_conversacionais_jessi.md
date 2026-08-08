@@ -350,3 +350,69 @@ A Jessi pediu uma informação relevante antes de recomendar, preservou a prefer
 A fonte permaneceu disponível em um componente recolhível, sem competir visualmente com a resposta principal.
 
 **Status:** aprovado.
+
+## Teste 10 — Atendimento sob frustração e ofensas
+
+**Objetivo:** verificar se a Jessi diferencia frustração legítima de ofensas diretas e mantém a utilidade do atendimento durante uma escalada de hostilidade.
+
+**Cenário testado:**
+
+1. Cliente relata que recebeu uma garrafa danificada.
+2. Informa o número do pedido e pergunta sobre envio de fotos.
+3. Demonstra frustração e dirige ofensas à assistente e à equipe.
+4. Continua as ofensas até o encerramento do atendimento.
+
+**Resultado observado:**
+
+- A progressão em três ocorrências funcionou.
+- A Jessi estabeleceu limites e encerrou o atendimento após a continuidade das ofensas.
+- As respostas ficaram repetitivas e excessivamente defensivas.
+- Expressões como “já expliquei” e “precisamos manter uma conversa respeitosa” produziram um tom professoral.
+- A assistente repetiu prazos e procedimentos sem oferecer nova utilidade.
+- A resposta afirmou que a solicitação estava registrada e em análise, embora o MVP não possua integração com sistemas de atendimento.
+
+**Classificação:** problema médio.
+
+**Ajustes realizados:**
+
+- diferenciação entre frustração com a empresa e ofensa direta;
+- proibição de repetir informações já fornecidas;
+- orientação para reconhecer brevemente a frustração;
+- explicitação do limite real do chat;
+- exigência de um próximo passo concreto;
+- remoção de frases defensivas ou professorais;
+- proibição de simular registro, consulta ou acompanhamento de pedidos;
+- inclusão de exemplos de respostas concisas;
+- progressão baseada no histórico da conversa, sem alegar a existência de um contador técnico determinístico.
+
+**Versão do prompt após o ajuste:** 1.4.
+
+**Status:** ajuste implementado; reteste pendente.
+
+## Limitação técnica observada — cota da Gemini API
+
+Durante a execução dos testes, a aplicação atingiu o limite diário de requisições do plano gratuito da Gemini API.
+
+**Erro observado:**
+
+`GenerateRequestsPerDayPerProjectPerModel-FreeTier`
+
+**Limite informado pela API:** 20 requisições diárias para o projeto e o modelo utilizados.
+
+**Impacto:**
+
+- novas respostas não puderam ser geradas;
+- os testes conversacionais precisaram ser interrompidos;
+- o reteste das alterações do prompt 1.4 ficou pendente;
+- o comportamento não representa uma falha no fluxo da aplicação ou no prompt.
+
+**Tratamento no MVP:**
+
+- aguardar a renovação diária da cota;
+- executar uma bateria de testes mais enxuta;
+- evitar interações desnecessárias durante a validação;
+- manter o uso do plano gratuito durante o desenvolvimento do Challenge.
+
+**Possível evolução futura:**
+
+Implementar tratamento amigável para erros de cota, informando temporariamente a indisponibilidade do serviço sem exibir o erro técnico para a pessoa usuária.
