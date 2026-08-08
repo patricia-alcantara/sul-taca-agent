@@ -1,6 +1,7 @@
 import streamlit as st
 from dotenv import load_dotenv
 from google import genai
+from google.genai import errors
 
 from busca_semantica import (
     carregar_chunks,
@@ -48,6 +49,12 @@ MENSAGEM_LIMITE_COMPRA = (
 
 MENSAGEM_SUBMENU_POLITICAS = (
     "Sobre qual assunto você quer saber?"
+)
+
+MENSAGEM_COTA_INDISPONIVEL = (
+    "Não consegui responder agora porque o serviço está "
+    "temporariamente indisponível. Sua mensagem ficou "
+    "registrada na conversa. Tente novamente mais tarde."
 )
 
 def criar_mensagens_iniciais() -> list[dict]:
@@ -108,16 +115,30 @@ def inicializar_rag():
     return cliente, chunks, indice
 
 def processar_pergunta(pergunta: str) -> None:
-    with st.spinner("Consultando a adega..."):
-        cliente, chunks, indice = inicializar_rag()
+    try:
+        with st.spinner("Consultando a adega..."):
+            cliente, chunks, indice = inicializar_rag()
 
-        resposta = responder_pergunta(
-            pergunta,
-            chunks,
-            indice,
-            st.session_state.historico,
-            cliente,
+            resposta = responder_pergunta(
+                pergunta,
+                chunks,
+                indice,
+                st.session_state.historico,
+                cliente,
+            )
+
+    except errors.APIError as erro:
+        if erro.code != 429:
+            raise
+
+        adicionar_mensagem("usuario", pergunta)
+        adicionar_mensagem(
+            "jessi",
+            MENSAGEM_COTA_INDISPONIVEL,
+            incluir_no_historico=False,
         )
+        st.session_state.etapa_atual = "conversa"
+        st.rerun()
 
     adicionar_mensagem("usuario", pergunta)
     adicionar_mensagem("jessi", resposta)
