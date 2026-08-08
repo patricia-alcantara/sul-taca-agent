@@ -20,10 +20,83 @@ st.set_page_config(
 
 MENSAGEM_INICIAL = (
     "Oi! Eu sou a **Jessi**, assistente virtual da Sul Taça. "
-    "Posso ajudar você a escolher um vinho, consultar pedidos "
-    "ou entender nossas políticas."
+    "Posso ajudar você a escolher um vinho, tirar dúvidas "
+    "sobre compras ou entender nossas políticas."
 )
 
+MENSAGEM_NOME = (
+    "Que bom ter você por aqui! Como posso te chamar?"
+)
+
+MENSAGEM_MENU_PRINCIPAL = (
+    "Como posso ajudar?"
+)
+
+MENSAGEM_SUBMENU_ESCOLHA = (
+    "Como você gostaria de começar?"
+)
+
+MENSAGEM_LIMITE_COMPRA = (
+    "Por este chat, consigo explicar os procedimentos da "
+    "Sul Taça e ajudar você a identificar as informações "
+    "necessárias. Ainda não consigo acessar ou alterar "
+    "pedidos, emitir nota fiscal, acompanhar entregas ou "
+    "abrir solicitações.\n\n"
+    "Se quiser, conte o que aconteceu e eu ajudo a preparar "
+    "o contato com o canal oficial."
+)
+
+MENSAGEM_SUBMENU_POLITICAS = (
+    "Sobre qual assunto você quer saber?"
+)
+
+def criar_mensagens_iniciais() -> list[dict]:
+    return [
+        {
+            "papel": "jessi",
+            "conteudo": MENSAGEM_INICIAL,
+        },
+        {
+            "papel": "jessi",
+            "conteudo": MENSAGEM_NOME,
+        },
+    ]
+
+
+def reiniciar_conversa() -> None:
+    mensagens_iniciais = criar_mensagens_iniciais()
+
+    st.session_state.nome_usuario = None
+    st.session_state.etapa_atual = "nome"
+    st.session_state.mensagens = mensagens_iniciais.copy()
+    st.session_state.historico = mensagens_iniciais.copy()
+
+def adicionar_mensagem(
+    papel: str,
+    conteudo: str,
+    incluir_no_historico: bool = True,
+) -> None:
+    mensagem = {
+        "papel": papel,
+        "conteudo": conteudo,
+    }
+
+    st.session_state.mensagens.append(mensagem)
+
+    if incluir_no_historico:
+        st.session_state.historico.append(
+            mensagem.copy()
+        )
+
+def registrar_escolha(
+    escolha: str,
+    resposta: str,
+    proxima_etapa: str,
+) -> None:
+    adicionar_mensagem("usuario", escolha)
+    adicionar_mensagem("jessi", resposta)
+    st.session_state.etapa_atual = proxima_etapa
+    st.rerun()
 
 @st.cache_resource
 def inicializar_rag():
@@ -33,6 +106,23 @@ def inicializar_rag():
     indice = criar_indice(vetores)
 
     return cliente, chunks, indice
+
+def processar_pergunta(pergunta: str) -> None:
+    with st.spinner("Consultando a adega..."):
+        cliente, chunks, indice = inicializar_rag()
+
+        resposta = responder_pergunta(
+            pergunta,
+            chunks,
+            indice,
+            st.session_state.historico,
+            cliente,
+        )
+
+    adicionar_mensagem("usuario", pergunta)
+    adicionar_mensagem("jessi", resposta)
+    st.session_state.etapa_atual = "conversa"
+    st.rerun()
 
 def exibir_resposta_jessi(conteudo: str) -> None:
     partes = conteudo.rsplit("\n---\n", 1)
@@ -99,45 +189,18 @@ if st.session_state.acesso_maioridade is False:
     st.stop()
 
 
-with st.spinner("Preparando a adega..."):
-    cliente, chunks, indice = inicializar_rag()
+chaves_da_conversa = (
+    "nome_usuario",
+    "etapa_atual",
+    "mensagens",
+    "historico",
+)
 
-
-if "mensagens" not in st.session_state:
-    st.session_state.mensagens = [
-        {
-            "papel": "jessi",
-            "conteudo": MENSAGEM_INICIAL,
-        }
-    ]
-
-if "historico" not in st.session_state:
-    st.session_state.historico = [
-        {
-            "papel": "jessi",
-            "conteudo": MENSAGEM_INICIAL,
-        }
-    ]
-
-
-if st.sidebar.button(
-    "↻ Nova conversa",
-    use_container_width=True,
+if any(
+    chave not in st.session_state
+    for chave in chaves_da_conversa
 ):
-    st.session_state.mensagens = [
-        {
-            "papel": "jessi",
-            "conteudo": MENSAGEM_INICIAL,
-        }
-    ]
-    st.session_state.historico = [
-        {
-            "papel": "jessi",
-            "conteudo": MENSAGEM_INICIAL,
-        }
-    ]
-    st.rerun()
-
+    reiniciar_conversa()
 
 for mensagem in st.session_state.mensagens:
     papel_streamlit = (
@@ -152,48 +215,182 @@ for mensagem in st.session_state.mensagens:
                 mensagem["conteudo"]
             )
         else:
-            st.markdown(mensagem["conteudo"])
+            st.markdown(
+                mensagem["conteudo"]
+            )
+if st.session_state.etapa_atual == "nome":
+    if st.button(
+        "Prefiro não informar",
+        key="pular_nome",
+        use_container_width=True,
+    ):
+        registrar_escolha(
+            "Prefiro não informar",
+            MENSAGEM_MENU_PRINCIPAL,
+            "menu_principal",
+        )
 
-pergunta = st.chat_input("Digite sua mensagem")
+elif st.session_state.etapa_atual == "menu_principal":
+    if st.button(
+        "Quero ajuda para escolher",
+        key="menu_escolher",
+        use_container_width=True,
+    ):
+        registrar_escolha(
+            "Quero ajuda para escolher",
+            MENSAGEM_SUBMENU_ESCOLHA,
+            "menu_escolha",
+        )
 
-if pergunta:
-    st.session_state.mensagens.append(
-        {
-            "papel": "usuario",
-            "conteudo": pergunta,
-        }
-    )
+    if st.button(
+        "Tenho um vinho em mente",
+        key="menu_vinho_especifico",
+        use_container_width=True,
+    ):
+        registrar_escolha(
+            "Tenho um vinho em mente",
+            (
+                "Qual vinho você tem em mente? "
+                "Pode escrever o nome ou o que lembra do rótulo."
+            ),
+            "conversa",
+        )
 
-    with st.chat_message("user"):
-        st.markdown(pergunta)
+    if st.button(
+        "Ajuda com uma compra",
+        key="menu_ajuda_compra",
+        use_container_width=True,
+    ):
+        registrar_escolha(
+            "Ajuda com uma compra",
+            MENSAGEM_LIMITE_COMPRA,
+            "conversa",
+        )
 
-    with st.chat_message("assistant"):
-        with st.spinner("Consultando a adega..."):
-            resposta = responder_pergunta(
-                pergunta,
-                chunks,
-                indice,
-                st.session_state.historico,
-                cliente,
+    if st.button(
+        "Políticas e privacidade",
+        key="menu_politicas",
+        use_container_width=True,
+    ):
+        registrar_escolha(
+            "Políticas e privacidade",
+            MENSAGEM_SUBMENU_POLITICAS,
+            "menu_politicas",
+        )
+
+    if st.button(
+        "Outras dúvidas e sugestões",
+        key="menu_outras_duvidas",
+        use_container_width=True,
+    ):
+        registrar_escolha(
+            "Outras dúvidas e sugestões",
+            "Pode me contar como posso ajudar?",
+            "conversa",
+        )
+
+elif st.session_state.etapa_atual == "menu_escolha":
+    perguntas_de_escolha = {
+        "Para acompanhar um prato": (
+            "Qual prato você pretende servir?"
+        ),
+        "Para uma ocasião": (
+            "Qual é a ocasião e que clima você imaginou?"
+        ),
+        "Para presentear": (
+            "O que você sabe sobre as preferências "
+            "de quem vai receber o presente?"
+        ),
+        "Por faixa de preço": (
+            "Qual faixa de preço você gostaria de considerar?"
+        ),
+        "Quero descobrir algo novo": (
+            "Você tem alguma preferência ou restrição "
+            "que eu deva considerar?"
+        ),
+    }
+
+    for indice, (
+        opcao,
+        resposta,
+    ) in enumerate(perguntas_de_escolha.items()):
+        if st.button(
+            opcao,
+            key=f"submenu_escolha_{indice}",
+            use_container_width=True,
+        ):
+            registrar_escolha(
+                opcao,
+                resposta,
+                "conversa",
             )
 
-        exibir_resposta_jessi(resposta)
 
-    st.session_state.historico.append(
-        {
-            "papel": "usuario",
-            "conteudo": pergunta,
+elif st.session_state.etapa_atual == "menu_politicas":
+    perguntas_de_politicas = {
+        "Privacidade e dados": (
+            "Quero saber sobre privacidade e uso de dados."
+        ),
+        "Compras e entregas": (
+            "Quero saber sobre compras e entregas."
+        ),
+        "Trocas e reembolsos": (
+            "Quero saber sobre trocas e reembolsos."
+        ),
+    }
+
+    for indice, (
+        opcao,
+        pergunta_da_politica,
+    ) in enumerate(perguntas_de_politicas.items()):
+        if st.button(
+            opcao,
+            key=f"submenu_politicas_{indice}",
+            use_container_width=True,
+        ):
+            processar_pergunta(pergunta_da_politica)
+
+placeholder = (
+    "Digite seu nome"
+    if st.session_state.etapa_atual == "nome"
+    else "Digite sua mensagem"
+)
+
+pergunta = st.chat_input(placeholder)
+
+if pergunta:
+    if st.session_state.etapa_atual == "nome":
+        nome_informado = pergunta.strip()
+
+        respostas_sem_nome = {
+            "prefiro não informar",
+            "não quero informar",
+            "pular",
         }
-    )
-    st.session_state.historico.append(
-        {
-            "papel": "jessi",
-            "conteudo": resposta,
-        }
-    )
-    st.session_state.mensagens.append(
-        {
-            "papel": "jessi",
-            "conteudo": resposta,
-        }
-    )
+
+        if nome_informado.lower() in respostas_sem_nome:
+            st.session_state.nome_usuario = None
+            mensagem_usuario = "Prefiro não informar"
+            mensagem_jessi = MENSAGEM_MENU_PRINCIPAL
+        else:
+            st.session_state.nome_usuario = nome_informado
+            mensagem_usuario = nome_informado
+            mensagem_jessi = (
+                f"Prazer, **{nome_informado}**. "
+                f"{MENSAGEM_MENU_PRINCIPAL}"
+            )
+
+        adicionar_mensagem(
+            "usuario",
+            mensagem_usuario,
+        )
+        adicionar_mensagem(
+            "jessi",
+            mensagem_jessi,
+        )
+
+        st.session_state.etapa_atual = "menu_principal"
+        st.rerun()
+
+    else:
+        processar_pergunta(pergunta)
