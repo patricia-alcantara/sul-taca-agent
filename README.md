@@ -1,85 +1,165 @@
 # Sul Taça Agent 🍷
 
-Agente de inteligência artificial desenvolvido para a Sul Taça, um e-commerce fictício de vinhos com sede em Porto Alegre, no Rio Grande do Sul.
+Sul Taça Agent é um projeto educacional desenvolvido para o Challenge Alura Agent. A aplicação simula o atendimento de um e-commerce fictício de vinhos de Porto Alegre e facilita o acesso ao catálogo, às políticas e às informações da loja.
 
-O projeto faz parte do Challenge Alura Agent e tem como objetivo facilitar o acesso às informações da loja. Por meio de uma interface de conversa, as pessoas poderão fazer perguntas sobre produtos, entregas, devoluções, privacidade e outras políticas da empresa.
+A **Jessi** é a assistente virtual da Sul Taça. Ela ajuda pessoas maiores de 18 anos a escolher uma garrafa, compreender produtos e consultar informações operacionais com linguagem acolhedora, objetiva e fiel às fontes disponíveis.
 
-## Objetivo do projeto
+> A Sul Taça é uma empresa fictícia. Produtos, preços, estoque, políticas e canais de atendimento existem somente para fins educacionais e não representam uma operação comercial real.
 
-O agente será capaz de consultar os documentos da Sul Taça e gerar respostas claras em linguagem natural. Dessa forma, a pessoa não precisará procurar manualmente a informação em diferentes arquivos.
+## Deploy OCI
 
-Além de responder dúvidas sobre a operação da loja, o agente também poderá utilizar o catálogo para sugerir vinhos de acordo com preferências, ocasiões e harmonizações.
+O deploy na Oracle Cloud Infrastructure (OCI) está **em preparação**. A URL pública e as evidências de execução serão adicionadas depois da publicação, sem expor credenciais ou outros dados sensíveis.
+
+## Funcionalidades
+
+- confirmação obrigatória de maioridade antes da liberação do chat;
+- identificação por nome opcional;
+- menu principal, submenus orientativos e conversa livre;
+- recomendação de vinhos por prato, ocasião, presente, preço, preferências e restrições;
+- consulta a produtos, entregas, devoluções, reembolsos, privacidade e termos;
+- contexto recente da conversa durante a sessão;
+- respostas baseadas no catálogo e nos documentos da Sul Taça;
+- fonte consultada disponível em um componente recolhível;
+- tratamento amigável para indisponibilidade por cota da API;
+- tema com contraste validado segundo o nível AA da WCAG.
+
+O fluxo atual é:
+
+```text
+apresentação → maioridade → nome opcional → menu principal → submenu ou conversa livre
+```
+
+## Arquitetura RAG
+
+A aplicação utiliza Geração Aumentada por Recuperação (RAG) para combinar a pergunta e o histórico recente com trechos relevantes da base de conhecimento.
+
+```mermaid
+flowchart LR
+    A[PDFs da Sul Taça] --> B[Extração e chunks]
+    B --> C[Embeddings Gemini]
+    C --> D[Índice FAISS em memória]
+    E[Pergunta + histórico] --> F[Busca semântica]
+    D --> F
+    F --> G[Prompt da Jessi + contexto]
+    G --> H[Resposta Gemini + fonte]
+```
+
+Na inicialização, os PDFs são extraídos e divididos em chunks de 1.000 caracteres, com sobreposição de 300. O modelo `gemini-embedding-001` gera vetores de 768 dimensões, normalizados antes de serem armazenados em um **índice vetorial FAISS em memória**.
+
+A cada pergunta, a aplicação recupera os três chunks semanticamente mais próximos. O prompt da Jessi v1.6 recebe esses candidatos, a pergunta e as últimas seis mensagens da sessão. O modelo `gemini-3.6-flash` gera a resposta e indica somente a fonte que sustenta diretamente a informação utilizada. A preparação dos documentos, embeddings e índice é mantida em cache pelo Streamlit durante a execução.
+
+## Tecnologias
+
+- Python 3.13;
+- Streamlit;
+- Google Gen AI SDK e Gemini;
+- FAISS CPU;
+- NumPy;
+- PyPDF;
+- LangChain Text Splitters;
+- python-dotenv.
+
+As versões utilizadas estão fixadas em [`requirements.txt`](requirements.txt).
+
+## Como executar localmente
+
+### 1. Criar e ativar um ambiente virtual
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+No Windows PowerShell, a ativação pode ser feita com:
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+### 2. Instalar as dependências
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+### 3. Configurar a chave da Gemini
+
+Crie um arquivo `.env` na raiz do projeto:
+
+```dotenv
+GEMINI_API_KEY=sua_chave_ficticia_aqui
+```
+
+Substitua o valor fictício pela sua credencial local. O arquivo `.env` está no `.gitignore` e **não deve ser versionado**.
+
+### 4. Iniciar a aplicação
+
+```bash
+streamlit run app.py
+```
+
+O Streamlit informa no terminal o endereço local da aplicação. Os PDFs da pasta `documentos` precisam permanecer disponíveis para a construção do índice.
 
 ## Base de conhecimento
 
-O agente utilizará os seguintes documentos em PDF:
+A base contém seis documentos em PDF:
 
-- Política de Privacidade
-- Política de Reembolso e Devoluções
-- Perguntas Frequentes
-- Guia de Envios e Entregas
-- Termos e Condições
-- Catálogo de Vinhos
+1. [Política de Privacidade](documentos/sultaca_01_politica_de_privacidade.pdf)
+2. [Política de Reembolso e Devoluções](documentos/sultaca_02_politica_de_reembolso_e_devolucoes.pdf)
+3. [Perguntas Frequentes](documentos/sultaca_03_perguntas_frequentes.pdf)
+4. [Guia de Envios e Entregas](documentos/sultaca_04_guia_de_envios_e_entregas.pdf)
+5. [Termos e Condições](documentos/sultaca_05_termos_e_condicoes.pdf)
+6. [Catálogo de Vinhos](documentos/sultaca_06_catalogo_de_vinhos.pdf)
 
-Todos os documentos estão disponíveis na pasta `documentos`.
+Os chunks recuperados são tratados como candidatos: proximidade temática não é evidência suficiente. A Jessi utiliza somente informações que sustentam explicitamente a resposta, não transfere regras entre procedimentos e reconhece quando os documentos não permitem confirmar um dado.
 
-## Arquitetura planejada
+## Exemplos
 
-A aplicação utilizará uma arquitetura RAG (Geração Aumentada por Recuperação).
+As respostas são geradas em linguagem natural e podem variar. Os exemplos abaixo resumem comportamentos aprovados nos testes.
 
-O fluxo será composto pelas seguintes etapas:
+### Recomendação com restrições
 
-1. Leitura dos documentos em PDF.
-2. Divisão do conteúdo em trechos menores.
-3. Transformação dos trechos em representações numéricas chamadas embeddings.
-4. Armazenamento dos embeddings em um banco vetorial.
-5. Busca dos trechos mais relacionados à pergunta.
-6. Envio da pergunta e do contexto encontrado para o modelo de linguagem.
-7. Geração da resposta com indicação da fonte consultada.
+**Pergunta:** “Quero um vinho vegano para risoto de cogumelos e gastar até R$ 100.”
 
-## Tecnologias planejadas
+**Resposta resumida:** a Jessi recomenda o **Manhã de Bento Chardonnay 2025**, explica a relação com o prato e informa o preço e o estoque registrados no catálogo.
 
-- Python
-- Streamlit
-- LangChain
-- PyPDF
-- FAISS
-- Google Gemini
+### Segunda via de nota fiscal
 
-As tecnologias poderão ser ajustadas durante o desenvolvimento, de acordo com os testes e as necessidades do projeto.
+**Pergunta:** “Quero a segunda via da nota fiscal do pedido 13.”
 
-## Exemplos de perguntas
+**Resposta resumida:** a Jessi esclarece que não acessa pedidos nem reenvia notas pelo chat e orienta o contato documentado, solicitando apenas número do pedido, nome da pessoa compradora e e-mail usado na compra.
 
-- Qual é o prazo de entrega para a região Sul?
-- O que devo fazer se uma garrafa chegar quebrada?
-- Posso devolver um vinho depois de recebê-lo?
-- Como a Sul Taça utiliza os meus dados pessoais?
-- Quais vinhos combinam com risoto de cogumelos?
-- Existe algum vinho vegano no catálogo?
-- Quais são os vinhos mais baratos disponíveis?
+### Parcelamento não documentado
 
-## Status do projeto
+**Pergunta:** “Em quantas vezes posso parcelar minha compra no cartão?”
 
-Em desenvolvimento.
+**Resposta resumida:** a Jessi informa que os documentos mencionam cartão e Pix, mas não especificam a quantidade ou as condições de parcelamento, sem inventar um limite.
 
-### Etapas concluídas
+## Documentação e testes
 
-- Definição do contexto e da identidade da empresa fictícia.
-- Criação da documentação da Sul Taça.
-- Organização da base de conhecimento em PDF.
-- Criação do catálogo de vinhos.
-- Configuração do repositório e do versionamento com Git.
+- [Persona e diretrizes da Jessi](docs/persona_jessi_sul_taca.md)
+- [Prompt do sistema v1.6](prompts/prompt_jessi_sul_taca.md)
+- [Testes conversacionais e de interface](docs/testes_conversacionais_jessi.md)
+- [Perguntas Frequentes em formato editável](docs/sultaca_03_perguntas_frequentes.md)
 
-### Próximas etapas
+Os testes registrados cobrem maioridade, memória da sessão, recomendações com restrições, produtos ausentes, fidelidade factual, exibição de fontes, limites operacionais e acessibilidade da interface.
 
-- Implementar a leitura e o processamento dos PDFs.
-- Construir o sistema de busca nos documentos.
-- Integrar o modelo de linguagem.
-- Criar a interface conversacional.
-- Testar as respostas do agente.
-- Publicar a aplicação na nuvem.
-- Adicionar exemplos de respostas e evidências do funcionamento.
+## Limitações do MVP
 
-## Aviso
+- não possui checkout, pagamento ou reserva de estoque;
+- não consulta estoque em tempo real;
+- não acessa, altera ou acompanha pedidos reais;
+- não emite nem reenvia nota fiscal;
+- não abre protocolos, trocas, devoluções ou solicitações;
+- mantém o contexto somente durante a sessão;
+- depende da disponibilidade e da cota da API Gemini;
+- recupera sempre os três chunks mais próximos, sem limiar calibrado de similaridade.
 
-A Sul Taça é uma empresa fictícia criada exclusivamente para fins educacionais. Os produtos, preços, políticas e demais informações presentes neste projeto não representam uma operação comercial real.
+## Próximos passos
+
+- concluir e documentar o deploy na OCI;
+- adicionar testes automatizados para o fluxo e as funções do RAG;
+- estruturar os tipos e separar melhor interface, estado e recuperação;
+- adotar resposta estruturada para separar conteúdo e fonte;
+- ampliar o tratamento de erros externos;
+- calibrar a recuperação semântica com uma amostra maior de consultas.
