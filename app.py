@@ -240,6 +240,35 @@ for mensagem in st.session_state.mensagens:
                 mensagem["conteudo"]
             )
 if st.session_state.etapa_atual == "nome":
+    nome_informado = st.text_input(
+        "Nome",
+        placeholder="Digite seu nome",
+        label_visibility="collapsed",
+    )
+
+    if st.button(
+        "Continuar",
+        key="continuar_nome",
+        use_container_width=True,
+        type="primary",
+        disabled=not nome_informado.strip(),
+    ):
+        nome_informado = nome_informado.strip()
+        st.session_state.nome_usuario = nome_informado
+        adicionar_mensagem(
+            "usuario",
+            nome_informado,
+        )
+        adicionar_mensagem(
+            "jessi",
+            (
+                f"Prazer, **{nome_informado}**. "
+                f"{MENSAGEM_MENU_PRINCIPAL}"
+            ),
+        )
+        st.session_state.etapa_atual = "menu_principal"
+        st.rerun()
+
     if st.button(
         "Prefiro não informar",
         key="pular_nome",
@@ -371,47 +400,11 @@ elif st.session_state.etapa_atual == "menu_politicas":
         ):
             processar_pergunta(pergunta_da_politica)
 
-placeholder = (
-    "Digite seu nome"
+pergunta = (
+    None
     if st.session_state.etapa_atual == "nome"
-    else "Digite sua mensagem"
+    else st.chat_input("Digite sua mensagem")
 )
 
-pergunta = st.chat_input(placeholder)
-
 if pergunta:
-    if st.session_state.etapa_atual == "nome":
-        nome_informado = pergunta.strip()
-
-        respostas_sem_nome = {
-            "prefiro não informar",
-            "não quero informar",
-            "pular",
-        }
-
-        if nome_informado.lower() in respostas_sem_nome:
-            st.session_state.nome_usuario = None
-            mensagem_usuario = "Prefiro não informar"
-            mensagem_jessi = MENSAGEM_MENU_PRINCIPAL
-        else:
-            st.session_state.nome_usuario = nome_informado
-            mensagem_usuario = nome_informado
-            mensagem_jessi = (
-                f"Prazer, **{nome_informado}**. "
-                f"{MENSAGEM_MENU_PRINCIPAL}"
-            )
-
-        adicionar_mensagem(
-            "usuario",
-            mensagem_usuario,
-        )
-        adicionar_mensagem(
-            "jessi",
-            mensagem_jessi,
-        )
-
-        st.session_state.etapa_atual = "menu_principal"
-        st.rerun()
-
-    else:
-        processar_pergunta(pergunta)
+    processar_pergunta(pergunta)
