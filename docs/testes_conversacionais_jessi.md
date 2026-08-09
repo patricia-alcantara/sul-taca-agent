@@ -488,3 +488,72 @@ A Jessi informou que os documentos mencionam pagamento por cartão e Pix, mas n�
 O código sempre recupera os três trechos semanticamente mais próximos, mesmo quando a relação com a pergunta é fraca. A inclusão imediata de um limiar numérico de similaridade foi descartada porque exigiria calibração com uma amostra maior de consultas.
 
 Como os dois retestes demonstraram comportamento adequado após os ajustes de instrução e documentação, o MVP manterá a busca atual. A filtragem por pontuação poderá ser retomada se novos testes demonstrarem uso indevido de trechos apenas relacionados.
+
+## Teste 12 — Fluxo de identificação e hierarquia visual
+
+**Data do teste:** 08/08/2026
+
+**Interface:** Streamlit
+
+**Objetivo:** validar o fluxo de identificação da pessoa usuária e os ajustes de hierarquia visual dos controles sem alterar o comportamento conversacional.
+
+### Cenário A — Confirmação de maioridade
+
+A confirmação de maioridade permaneceu funcional. A ação positiva continuou liberando o fluxo, e a ação negativa manteve o bloqueio das orientações sobre bebidas alcoólicas.
+
+A cor primária da interface foi alterada de vermelho para o tom de uva `#5A356A`, reduzindo a associação da ação positiva com alerta, erro ou ação destrutiva.
+
+**Status:** aprovado.
+
+### Cenário B — Nome informado
+
+Ao preencher o campo de nome e selecionar **Continuar**, a interface registrou o nome e avançou para o menu principal com um único clique. O envio do formulário pela tecla Enter também funcionou.
+
+Quando o formulário foi enviado com o nome vazio, o fluxo permaneceu na etapa de identificação.
+
+**Status:** aprovado.
+
+### Cenário C — Nome não informado
+
+A opção **Prefiro não informar** permaneceu abaixo do campo de nome e fora do formulário. Ao selecioná-la, a interface avançou normalmente para o menu principal.
+
+**Status:** aprovado.
+
+### Cenário D — Menus e conversa livre
+
+O menu principal apresentou as cinco opções previstas com ícones. Os submenus de escolha e de políticas também apresentaram ícones e preservaram o comportamento anterior de registrar a opção e avançar para a etapa correspondente.
+
+O campo de conversa livre foi exibido somente depois da identificação por nome ou da escolha de não informá-lo.
+
+**Status:** aprovado.
+
+### Cenário E — Contraste da paleta
+
+A paleta validada utiliza:
+
+- cor primária `#5A356A`;
+- fundo principal `#FAF8FB`;
+- fundo secundário `#F0EBF3`;
+- texto `#26212A`.
+
+As relações de contraste calculadas foram:
+
+- texto sobre fundo principal: **14,91:1**;
+- texto sobre fundo secundário: **13,41:1**;
+- cor primária sobre branco: **9,76:1**;
+- cor primária sobre fundo principal: **9,24:1**.
+
+As combinações avaliadas superam o mínimo de **4,5:1** definido pela WCAG AA para texto normal.
+
+**Status:** aprovado.
+
+### Resultado geral
+
+O fluxo completo permaneceu funcional: apresentação, confirmação de maioridade, identificação opcional, menu principal, submenus e conversa livre.
+
+**Status:** aprovado.
+
+### Backlog de baixa prioridade
+
+- avaliar o aumento da tipografia-base;
+- avaliar o alinhamento em coluna dos ícones e labels, evitando CSS frágil.
