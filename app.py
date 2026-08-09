@@ -240,19 +240,19 @@ for mensagem in st.session_state.mensagens:
                 mensagem["conteudo"]
             )
 if st.session_state.etapa_atual == "nome":
-    nome_informado = st.text_input(
-        "Nome",
-        placeholder="Digite seu nome",
-        label_visibility="collapsed",
-    )
+    with st.form("formulario_nome"):
+        nome_informado = st.text_input(
+            "Nome",
+            placeholder="Digite seu nome",
+            label_visibility="collapsed",
+        )
+        continuar = st.form_submit_button(
+            "Continuar",
+            use_container_width=True,
+            type="primary",
+        )
 
-    if st.button(
-        "Continuar",
-        key="continuar_nome",
-        use_container_width=True,
-        type="primary",
-        disabled=not nome_informado.strip(),
-    ):
+    if continuar and nome_informado.strip():
         nome_informado = nome_informado.strip()
         st.session_state.nome_usuario = nome_informado
         adicionar_mensagem(
@@ -285,6 +285,7 @@ elif st.session_state.etapa_atual == "menu_principal":
         "Quero ajuda para escolher",
         key="menu_escolher",
         use_container_width=True,
+        icon=":material/wine_bar:",
     ):
         registrar_escolha(
             "Quero ajuda para escolher",
@@ -296,6 +297,7 @@ elif st.session_state.etapa_atual == "menu_principal":
         "Tenho um vinho em mente",
         key="menu_vinho_especifico",
         use_container_width=True,
+        icon=":material/search:",
     ):
         registrar_escolha(
             "Tenho um vinho em mente",
@@ -310,6 +312,7 @@ elif st.session_state.etapa_atual == "menu_principal":
         "Ajuda com uma compra",
         key="menu_ajuda_compra",
         use_container_width=True,
+        icon=":material/receipt_long:",
     ):
         registrar_escolha(
             "Ajuda com uma compra",
@@ -321,6 +324,7 @@ elif st.session_state.etapa_atual == "menu_principal":
         "Políticas e privacidade",
         key="menu_politicas",
         use_container_width=True,
+        icon=":material/policy:",
     ):
         registrar_escolha(
             "Políticas e privacidade",
@@ -332,6 +336,7 @@ elif st.session_state.etapa_atual == "menu_principal":
         "Outras dúvidas e sugestões",
         key="menu_outras_duvidas",
         use_container_width=True,
+        icon=":material/chat:",
     ):
         registrar_escolha(
             "Outras dúvidas e sugestões",
@@ -342,32 +347,38 @@ elif st.session_state.etapa_atual == "menu_principal":
 elif st.session_state.etapa_atual == "menu_escolha":
     perguntas_de_escolha = {
         "Para acompanhar um prato": (
-            "Qual prato você pretende servir?"
+            "Qual prato você pretende servir?",
+            ":material/restaurant:",
         ),
         "Para uma ocasião": (
-            "Qual é a ocasião e que clima você imaginou?"
+            "Qual é a ocasião e que clima você imaginou?",
+            ":material/celebration:",
         ),
         "Para presentear": (
             "O que você sabe sobre as preferências "
-            "de quem vai receber o presente?"
+            "de quem vai receber o presente?",
+            ":material/featured_seasonal_and_gifts:",
         ),
         "Por faixa de preço": (
-            "Qual faixa de preço você gostaria de considerar?"
+            "Qual faixa de preço você gostaria de considerar?",
+            ":material/payments:",
         ),
         "Quero descobrir algo novo": (
             "Você tem alguma preferência ou restrição "
-            "que eu deva considerar?"
+            "que eu deva considerar?",
+            ":material/explore:",
         ),
     }
 
     for indice, (
         opcao,
-        resposta,
+        (resposta, icone),
     ) in enumerate(perguntas_de_escolha.items()):
         if st.button(
             opcao,
             key=f"submenu_escolha_{indice}",
             use_container_width=True,
+            icon=icone,
         ):
             registrar_escolha(
                 opcao,
@@ -379,24 +390,28 @@ elif st.session_state.etapa_atual == "menu_escolha":
 elif st.session_state.etapa_atual == "menu_politicas":
     perguntas_de_politicas = {
         "Privacidade e dados": (
-            "Quero saber sobre privacidade e uso de dados."
+            "Quero saber sobre privacidade e uso de dados.",
+            ":material/lock:",
         ),
         "Compras e entregas": (
-            "Quero saber sobre compras e entregas."
+            "Quero saber sobre compras e entregas.",
+            ":material/local_shipping:",
         ),
         "Trocas e reembolsos": (
-            "Quero saber sobre trocas e reembolsos."
+            "Quero saber sobre trocas e reembolsos.",
+            ":material/sync_alt:",
         ),
     }
 
     for indice, (
         opcao,
-        pergunta_da_politica,
+        (pergunta_da_politica, icone),
     ) in enumerate(perguntas_de_politicas.items()):
         if st.button(
             opcao,
             key=f"submenu_politicas_{indice}",
             use_container_width=True,
+            icon=icone,
         ):
             processar_pergunta(pergunta_da_politica)
 
