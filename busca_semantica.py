@@ -1,10 +1,7 @@
 from pathlib import Path
-import re
-import unicodedata
+
 import faiss
 import numpy as np
-from dotenv import load_dotenv
-from google import genai
 from google.genai import types
 
 from ler_documentos import (
@@ -13,6 +10,7 @@ from ler_documentos import (
     encontrar_pdfs,
     extrair_paginas,
 )
+
 DIMENSAO_EMBEDDING = 768
 
 ARQUIVO_PROMPT = (
@@ -52,59 +50,6 @@ def montar_historico_conversa(
 
     return "\n\n".join(mensagens_formatadas)
 
-def normalizar_texto(texto: str) -> str:
-    texto = unicodedata.normalize("NFD", texto.lower())
-    texto = "".join(
-        caractere
-        for caractere in texto
-        if unicodedata.category(caractere) != "Mn"
-    )
-
-    return re.sub(r"\s+", " ", texto).strip()
-
-
-def identificar_maioridade(mensagem: str) -> bool | None:
-    mensagem_normalizada = normalizar_texto(mensagem)
-
-    idade_informada = re.search(
-        r"\b(?:eu\s+)?(?:ainda\s+)?tenho\s+(\d{1,2})\s+anos?\b",
-        mensagem_normalizada,
-    )
-
-    if idade_informada:
-        idade = int(idade_informada.group(1))
-        return idade >= 18
-
-    confirmacoes_explicitas = (
-        "tenho mais de 18",
-        "sou maior de 18",
-        "sou maior de idade",
-        "ja sou maior de idade",
-    )
-
-    if any(
-        confirmacao in mensagem_normalizada
-        for confirmacao in confirmacoes_explicitas
-    ):
-        return True
-
-    if mensagem_normalizada in {
-        "sim",
-        "sim, tenho",
-        "tenho",
-        "confirmo",
-    }:
-        return True
-
-    if mensagem_normalizada in {
-        "nao",
-        "não",
-        "sou menor de idade",
-        "tenho menos de 18",
-    }:
-        return False
-
-    return None
 
 def carregar_chunks() -> list[dict]:
     todas_as_paginas = []
@@ -258,117 +203,3 @@ def responder_pergunta(
         historico,
         cliente,
     )
-
-def main() -> None:
-    load_dotenv()
-    cliente = genai.Client()
-
-    chunks = carregar_chunks()
-    vetores = gerar_embeddings(chunks, cliente)
-    indice = criar_indice(vetores)
-    historico = []
-    maioridade_confirmada = False
-    pergunta_pendente = None
-
-    print(
-        "\nSul Taça pronta. Digite sua pergunta "
-        "ou escreva 'sair' para encerrar."
-    )
-
-    while True:
-        pergunta = input("\nVocê: ").strip()
-
-        if pergunta.lower() == "sair":
-            print("\nSessão encerrada.")
-            break
-
-        if not pergunta:
-            print("Digite uma pergunta para continuar.")
-            continue
-
-        if not maioridade_confirmada:
-            resultado_maioridade = identificar_maioridade(
-                pergunta
-            )
-
-            if resultado_maioridade is False:
-                pergunta_pendente = None
-                print(
-                    "\nSul Taça:\n"
-                    "Não posso orientar a compra de bebidas "
-                    "alcoólicas para menores de 18 anos."
-                )
-                continue
-
-            if resultado_maioridade is None:
-                pergunta_pendente = pergunta
-                print(
-                    "\nSul Taça:\n"
-                    "Antes de continuar, preciso confirmar: "
-                    "você tem 18 anos ou mais?"
-                )
-                continue
-
-            maioridade_confirmada = True
-
-            historico.append(
-                {
-                    "papel": "usuario",
-                    "conteudo": (
-                        "Confirmo que tenho 18 anos ou mais."
-                    ),
-                }
-            )
-
-            if pergunta_pendente:
-                pergunta = pergunta_pendente
-                pergunta_pendente = None
-            else:
-                mensagem_normalizada = normalizar_texto(
-                    pergunta
-                )
-                confirmacoes_isoladas = {
-                    "sim",
-                    "sim, tenho",
-                    "tenho",
-                    "confirmo",
-                    "tenho mais de 18 anos",
-                    "sou maior de 18 anos",
-                    "sou maior de idade",
-                    "ja sou maior de idade",
-                }
-
-                if mensagem_normalizada in confirmacoes_isoladas:
-                    print(
-                        "\nSul Taça:\n"
-                        "Obrigada pela confirmação. "
-                        "Como posso ajudar?"
-                    )
-                    continue
-
-        resposta = responder_pergunta(
-            pergunta,
-            chunks,
-            indice,
-            historico,
-            cliente,
-        )
-
-        historico.append(
-            {
-                "papel": "usuario",
-                "conteudo": pergunta,
-            }
-        )
-        historico.append(
-            {
-                "papel": "jessi",
-                "conteudo": resposta,
-            }
-        )
-
-        print("\nSul Taça:")
-        print(resposta)
-
-if __name__ == "__main__":
-    main()
