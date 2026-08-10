@@ -483,7 +483,7 @@ def exibir_resposta_jessi(mensagem: dict) -> None:
         ):
             registrar_avaliacao(False)
 
-st.title("Sul Taça")
+st.title("🍷 Sul Taça")
 st.caption("Encontre o vinho certo para cada momento.")
 
 
@@ -506,7 +506,7 @@ if st.session_state.acesso_maioridade is None:
 
     if coluna_sim.button(
         "Sim, tenho 18 anos ou mais",
-        use_container_width=True,
+        width="stretch",
         type="primary",
     ):
         st.session_state.acesso_maioridade = True
@@ -514,7 +514,7 @@ if st.session_state.acesso_maioridade is None:
 
     if coluna_nao.button(
         "Não",
-        use_container_width=True,
+        width="stretch",
     ):
         st.session_state.acesso_maioridade = False
         st.rerun()
@@ -572,7 +572,7 @@ if st.session_state.etapa_atual == "nome":
         )
         continuar = st.form_submit_button(
             "Continuar",
-            use_container_width=True,
+            width="stretch",
             type="primary",
         )
 
@@ -596,7 +596,7 @@ if st.session_state.etapa_atual == "nome":
     if st.button(
         "Prefiro não informar",
         key="pular_nome",
-        use_container_width=True,
+        width="stretch",
     ):
         registrar_escolha(
             "Prefiro não informar",
@@ -608,7 +608,7 @@ elif st.session_state.etapa_atual == "menu_principal":
     if st.button(
         "Quero ajuda para escolher",
         key="menu_escolher",
-        use_container_width=True,
+        width="stretch",
         icon=":material/wine_bar:",
     ):
         registrar_escolha(
@@ -620,7 +620,7 @@ elif st.session_state.etapa_atual == "menu_principal":
     if st.button(
         "Tenho um vinho em mente",
         key="menu_vinho_especifico",
-        use_container_width=True,
+        width="stretch",
         icon=":material/search:",
     ):
         registrar_escolha(
@@ -637,7 +637,7 @@ elif st.session_state.etapa_atual == "menu_principal":
     if st.button(
         "Ajuda com uma compra",
         key="menu_ajuda_compra",
-        use_container_width=True,
+        width="stretch",
         icon=":material/receipt_long:",
     ):
         registrar_escolha(
@@ -651,7 +651,7 @@ elif st.session_state.etapa_atual == "menu_principal":
     if st.button(
         "Políticas e privacidade",
         key="menu_politicas",
-        use_container_width=True,
+        width="stretch",
         icon=":material/policy:",
     ):
         registrar_escolha(
@@ -663,7 +663,7 @@ elif st.session_state.etapa_atual == "menu_principal":
     if st.button(
         "Outras dúvidas e sugestões",
         key="menu_outras_duvidas",
-        use_container_width=True,
+        width="stretch",
         icon=":material/chat:",
     ):
         registrar_escolha(
@@ -705,7 +705,7 @@ elif st.session_state.etapa_atual == "menu_escolha":
         if st.button(
             opcao,
             key=f"submenu_escolha_{indice}",
-            use_container_width=True,
+            width="stretch",
             icon=icone,
         ):
             registrar_escolha(
@@ -741,7 +741,7 @@ elif st.session_state.etapa_atual == "menu_politicas":
         if st.button(
             opcao,
             key=f"submenu_politicas_{indice}",
-            use_container_width=True,
+            width="stretch",
             icon=icone,
         ):
             processar_pergunta(pergunta_da_politica)
