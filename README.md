@@ -6,9 +6,11 @@ A **Jessi** é a assistente virtual da Sul Taça. Ela ajuda pessoas maiores de 1
 
 > A Sul Taça é uma empresa fictícia. Produtos, preços, estoque, políticas e canais de atendimento existem somente para fins educacionais e não representam uma operação comercial real.
 
-## Deploy OCI
+## Deploy público
 
-O deploy na Oracle Cloud Infrastructure (OCI) está **em preparação**. A URL pública e as evidências de execução serão adicionadas depois da publicação, sem expor credenciais ou outros dados sensíveis.
+A aplicação está publicada no **Streamlit Community Cloud**:
+
+**[Acessar a Jessi — Sul Taça Agent](https://sul-taca-agent.streamlit.app/)**
 
 ## Funcionalidades
 
@@ -19,6 +21,7 @@ O deploy na Oracle Cloud Infrastructure (OCI) está **em preparação**. A URL p
 - consulta a produtos, entregas, devoluções, reembolsos, privacidade e termos;
 - contexto recente da conversa durante a sessão;
 - respostas baseadas no catálogo e nos documentos da Sul Taça;
+- comparação controlada entre produtos internos e páginas externas diretas;
 - fonte consultada disponível em um componente recolhível;
 - tratamento amigável para indisponibilidade por cota da API;
 - tema com contraste validado segundo o nível AA da WCAG.
@@ -49,6 +52,15 @@ flowchart LR
 Na inicialização, os PDFs são extraídos e divididos em chunks de 1.000 caracteres, com sobreposição de 300. O modelo `gemini-embedding-001` gera vetores de 768 dimensões, normalizados antes de serem armazenados em um **índice vetorial FAISS em memória**.
 
 A cada pergunta, a aplicação recupera os três chunks semanticamente mais próximos. O prompt da Jessi v1.6 recebe esses candidatos, a pergunta e as últimas seis mensagens da sessão. O modelo `gemini-3.6-flash` gera a resposta e indica somente a fonte que sustenta diretamente a informação utilizada. A preparação dos documentos, embeddings e índice é mantida em cache pelo Streamlit durante a execução.
+
+### Comparação externa controlada
+
+Para comparar um vinho da Sul Taça com um produto externo, a própria pessoa
+fornece a URL direta da página do produto. A aplicação usa o URL Context de
+forma delimitada a essa página; não realiza busca aberta na web nem segue links
+para ampliar a consulta. Dados do catálogo e dados externos permanecem
+separados, e a interface identifica distintamente as fontes internas e a URL
+externa utilizada.
 
 ## Tecnologias
 
@@ -117,13 +129,18 @@ streamlit run painel_qualidade.py \
   --theme.primaryColor="#C084D2"
 ```
 
-O banco fica em `data/qualidade.db` e não é versionado. O painel não possui
-autenticação e não deve ser publicado. As contagens de recomendações e
-comparações descrevem o uso do atendimento; não representam compra, conversão,
-receita ou intenção comercial confirmada. O tema escuro é aplicado somente a
-esse processo por parâmetros oficiais do Streamlit e não altera o tema claro da
-Jessi. O texto claro e o roxo de destaque têm contraste WCAG AA sobre os fundos
-principal e secundário.
+O banco fica em `data/qualidade.db` e não é versionado. Esse SQLite pertence à
+instância local em que a aplicação está executando: não é um banco compartilhado
+e, no deploy do Streamlit Community Cloud, seus dados podem ser perdidos em
+reinícios ou recriações da instância. O painel não é publicado porque não possui
+autenticação. Um uso de produção exigiria banco persistente compartilhado e
+controle de acesso.
+
+As contagens de recomendações e comparações descrevem o uso do atendimento; não
+representam compra, conversão, receita ou intenção comercial confirmada. O tema
+escuro é aplicado somente ao processo local do painel por parâmetros oficiais
+do Streamlit e não altera o tema claro da Jessi. O texto claro e o roxo de
+destaque têm contraste WCAG AA sobre os fundos principal e secundário.
 
 ## Base de conhecimento
 
@@ -179,12 +196,13 @@ Os testes registrados cobrem maioridade, memória da sessão, recomendações co
 - mantém o contexto somente durante a sessão;
 - usa sanitização determinística, que não garante anonimização perfeita de todo texto livre;
 - mantém as métricas de qualidade apenas no banco SQLite da execução local;
+- pode perder os dados SQLite do deploy quando a instância for reiniciada ou recriada;
 - depende da disponibilidade e da cota da API Gemini;
 - recupera sempre os três chunks mais próximos, sem limiar calibrado de similaridade.
 
 ## Próximos passos
 
-- concluir e documentar o deploy na OCI;
+- adotar banco persistente compartilhado e controle de acesso antes de publicar o painel;
 - adicionar testes automatizados para o fluxo e as funções do RAG;
 - estruturar os tipos e separar melhor interface, estado e recuperação;
 - adotar resposta estruturada para separar conteúdo e fonte;

@@ -847,3 +847,37 @@ Validação aprovada em 10/08/2026:
    bloqueante porque a pergunta, os ícones e o estado de hover tornam a
    interação suficientemente compreensível. A classificação por extenso
    permanece no painel.
+
+## Smoke test do deploy público
+
+**Ambiente:** Streamlit Community Cloud
+
+**URL:** [https://sul-taca-agent.streamlit.app/](https://sul-taca-agent.streamlit.app/)
+
+**Status:** aprovado em produção.
+
+### Recomendação
+
+Consulta testada: “Quero um vinho tinto seco de até R$ 100.”
+
+- recomendação dentro do orçamento: aprovada;
+- preço, estoque e características: aprovados;
+- fonte interna: exibida corretamente;
+- avaliação: registrada corretamente;
+- tooltip dos controles de avaliação: funcionou no ambiente publicado.
+
+### Comparação externa
+
+Produtos testados: Pedra Andina Malbec 2024 e Casillero del Diablo Reserva
+Malbec.
+
+- síntese orientada à escolha e tabela: aprovadas;
+- separação dos dados dos dois produtos: aprovada;
+- ausência de atributos externos inventados: aprovada;
+- fonte interna e URL externa: exibidas e distinguidas corretamente;
+- avaliação: registrada corretamente;
+- tooltip dos controles de avaliação: funcionou no ambiente publicado.
+
+O tooltip nativo não apareceu no navegador usado no teste local, apesar de
+estar configurado, mas funcionou no Streamlit Community Cloud. Recomendação,
+comparação externa, fontes e avaliação estão aprovadas no deploy público.
