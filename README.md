@@ -22,6 +22,8 @@ O deploy na Oracle Cloud Infrastructure (OCI) está **em preparação**. A URL p
 - fonte consultada disponível em um componente recolhível;
 - tratamento amigável para indisponibilidade por cota da API;
 - tema com contraste validado segundo o nível AA da WCAG.
+- avaliação positiva ou negativa em respostas de conteúdo;
+- painel local com métricas de qualidade e uso de recomendações e comparações.
 
 O fluxo atual é:
 
@@ -100,6 +102,29 @@ streamlit run app.py
 
 O Streamlit informa no terminal o endereço local da aplicação. Os PDFs da pasta `documentos` precisam permanecer disponíveis para a construção do índice.
 
+### Painel local de qualidade
+
+As respostas elegíveis são registradas anonimamente em SQLite. Pergunta e
+resposta só são persistidas, com sanitização de dados pessoais básicos, quando
+há uma avaliação. Para abrir o painel em outro processo local:
+
+```bash
+streamlit run painel_qualidade.py \
+  --theme.base=dark \
+  --theme.backgroundColor="#0F0D12" \
+  --theme.secondaryBackgroundColor="#211A25" \
+  --theme.textColor="#F5F1F6" \
+  --theme.primaryColor="#C084D2"
+```
+
+O banco fica em `data/qualidade.db` e não é versionado. O painel não possui
+autenticação e não deve ser publicado. As contagens de recomendações e
+comparações descrevem o uso do atendimento; não representam compra, conversão,
+receita ou intenção comercial confirmada. O tema escuro é aplicado somente a
+esse processo por parâmetros oficiais do Streamlit e não altera o tema claro da
+Jessi. O texto claro e o roxo de destaque têm contraste WCAG AA sobre os fundos
+principal e secundário.
+
 ## Base de conhecimento
 
 A base contém seis documentos em PDF:
@@ -152,6 +177,8 @@ Os testes registrados cobrem maioridade, memória da sessão, recomendações co
 - não emite nem reenvia nota fiscal;
 - não abre protocolos, trocas, devoluções ou solicitações;
 - mantém o contexto somente durante a sessão;
+- usa sanitização determinística, que não garante anonimização perfeita de todo texto livre;
+- mantém as métricas de qualidade apenas no banco SQLite da execução local;
 - depende da disponibilidade e da cota da API Gemini;
 - recupera sempre os três chunks mais próximos, sem limiar calibrado de similaridade.
 

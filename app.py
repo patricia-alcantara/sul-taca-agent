@@ -1,4 +1,5 @@
 import re
+from uuid import uuid4
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -22,6 +23,17 @@ from consulta_url import (
     eh_continuacao_comparacao,
     extrair_url,
     identificar_produto_catalogo,
+)
+from qualidade import (
+    TIPO_CATALOGO,
+    TIPO_COMPARACAO,
+    TIPO_FLUXO_GUIADO,
+    TIPO_ORIENTACAO,
+    avaliar_resposta,
+    eh_pergunta_de_recomendacao,
+    obter_avaliacao,
+    registrar_resposta_elegivel,
+    resposta_eh_avaliavel,
 )
 
 
@@ -130,11 +142,39 @@ def adicionar_mensagem(
     papel: str,
     conteudo: str,
     incluir_no_historico: bool = True,
+    *,
+    avaliavel: bool = False,
+    pergunta_origem: str = "",
+    rota_tecnica: str = "",
+    tipo_atendimento: str = "",
+    eh_recomendacao: bool = False,
+    eh_comparacao: bool = False,
 ) -> None:
     mensagem = {
         "papel": papel,
         "conteudo": conteudo,
     }
+
+    if papel == "jessi" and avaliavel:
+        mensagem.update(
+            {
+                "message_id": str(uuid4()),
+                "avaliavel": True,
+                "pergunta_origem": pergunta_origem,
+                "rota_tecnica": rota_tecnica,
+                "tipo_atendimento": tipo_atendimento,
+                "eh_recomendacao": eh_recomendacao,
+                "eh_comparacao": eh_comparacao,
+            }
+        )
+        registrar_resposta_elegivel(
+            message_id=mensagem["message_id"],
+            session_id=st.session_state.session_id,
+            rota_tecnica=rota_tecnica,
+            tipo_atendimento=tipo_atendimento,
+            eh_recomendacao=eh_recomendacao,
+            eh_comparacao=eh_comparacao,
+        )
 
     st.session_state.mensagens.append(mensagem)
 
@@ -147,9 +187,21 @@ def registrar_escolha(
     escolha: str,
     resposta: str,
     proxima_etapa: str,
+    *,
+    avaliavel: bool = False,
+    tipo_atendimento: str = "",
+    eh_recomendacao: bool = False,
 ) -> None:
     adicionar_mensagem("usuario", escolha)
-    adicionar_mensagem("jessi", resposta)
+    adicionar_mensagem(
+        "jessi",
+        resposta,
+        avaliavel=avaliavel,
+        pergunta_origem=escolha,
+        rota_tecnica="fluxo_guiado",
+        tipo_atendimento=tipo_atendimento,
+        eh_recomendacao=eh_recomendacao,
+    )
     st.session_state.etapa_atual = proxima_etapa
     st.rerun()
 
@@ -188,6 +240,11 @@ def inicializar_rag():
     return cliente, chunks, indice
 
 def processar_pergunta(pergunta: str) -> None:
+    categoria_resposta = "conteudo"
+    tipo_atendimento = TIPO_CATALOGO
+    eh_recomendacao = eh_pergunta_de_recomendacao(pergunta)
+    eh_comparacao = False
+
     try:
         with st.spinner("Consultando a adega..."):
             cliente, chunks, indice = inicializar_rag()
@@ -230,6 +287,9 @@ def processar_pergunta(pergunta: str) -> None:
                     and eh_continuacao_comparacao(pergunta)
                 )
             ):
+                tipo_atendimento = TIPO_COMPARACAO
+                eh_comparacao = True
+
                 if rota != "pedir_detalhes":
                     atualizar_comparacao_pendente(
                         comparacao_pendente,
@@ -268,6 +328,8 @@ def processar_pergunta(pergunta: str) -> None:
             elif rota == "pedir_vinho":
                 st.session_state.comparacao_pendente = None
                 resposta = MENSAGEM_PEDIR_VINHO
+                tipo_atendimento = TIPO_COMPARACAO
+                eh_comparacao = True
             elif (
                 comparacao_pendente
                 and rota not in ("url", "hibrida")
@@ -282,7 +344,10 @@ def processar_pergunta(pergunta: str) -> None:
                 )
             elif rota == "bloquear_url":
                 resposta = MENSAGEM_BLOQUEIO_CONSULTA
+                categoria_resposta = "bloqueio_seguranca"
             elif rota in ("url", "hibrida"):
+                tipo_atendimento = TIPO_COMPARACAO
+                eh_comparacao = True
                 contexto = ""
                 fontes_internas = ""
 
@@ -311,6 +376,7 @@ def processar_pergunta(pergunta: str) -> None:
 
                 if not resposta_url or not fonte_externa:
                     resposta = MENSAGEM_PAGINA_INSUFICIENTE
+                    categoria_resposta = "pagina_insuficiente"
                 else:
                     resposta = anexar_fontes(
                         resposta_url,
@@ -341,11 +407,21 @@ def processar_pergunta(pergunta: str) -> None:
         st.rerun()
 
     adicionar_mensagem("usuario", pergunta)
-    adicionar_mensagem("jessi", resposta)
+    adicionar_mensagem(
+        "jessi",
+        resposta,
+        avaliavel=resposta_eh_avaliavel(categoria_resposta),
+        pergunta_origem=pergunta,
+        rota_tecnica=rota,
+        tipo_atendimento=tipo_atendimento,
+        eh_recomendacao=eh_recomendacao,
+        eh_comparacao=eh_comparacao,
+    )
     st.session_state.etapa_atual = "conversa"
     st.rerun()
 
-def exibir_resposta_jessi(conteudo: str) -> None:
+def exibir_resposta_jessi(mensagem: dict) -> None:
+    conteudo = mensagem["conteudo"]
     partes = conteudo.rsplit("\n---\n", 1)
 
     if (
@@ -367,12 +443,55 @@ def exibir_resposta_jessi(conteudo: str) -> None:
             preparar_markdown(conteudo)
         )
 
+    if not mensagem.get("avaliavel"):
+        return
+
+    message_id = mensagem["message_id"]
+    avaliacao = obter_avaliacao(message_id)
+
+    if avaliacao is not None:
+        st.caption("✓ Feedback recebido.")
+        return
+
+    st.caption("Esta resposta foi útil?")
+
+    def registrar_avaliacao(valor: bool) -> None:
+        nome = st.session_state.get("nome_usuario") or ""
+        avaliar_resposta(
+            message_id=message_id,
+            avaliacao=valor,
+            pergunta=mensagem.get("pergunta_origem", ""),
+            resposta=conteudo,
+            termos_sensiveis=(nome,),
+        )
+        st.rerun()
+
+    with st.container(horizontal=True, gap="xsmall"):
+        if st.button(
+            "👍",
+            key=f"avaliacao_positiva_{message_id}",
+            help="Gostei",
+            width="content",
+        ):
+            registrar_avaliacao(True)
+
+        if st.button(
+            "👎",
+            key=f"avaliacao_negativa_{message_id}",
+            help="Não gostei",
+            width="content",
+        ):
+            registrar_avaliacao(False)
+
 st.title("Sul Taça")
 st.caption("Encontre o vinho certo para cada momento.")
 
 
 if "acesso_maioridade" not in st.session_state:
     st.session_state.acesso_maioridade = None
+
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(uuid4())
 
 
 if st.session_state.acesso_maioridade is None:
@@ -439,9 +558,7 @@ for mensagem in st.session_state.mensagens:
 
     with st.chat_message(papel_streamlit):
         if mensagem["papel"] == "jessi":
-            exibir_resposta_jessi(
-                mensagem["conteudo"]
-            )
+            exibir_resposta_jessi(mensagem)
         else:
             st.markdown(
                 mensagem["conteudo"]
@@ -513,6 +630,8 @@ elif st.session_state.etapa_atual == "menu_principal":
                 "Pode escrever o nome ou o que lembra do rótulo."
             ),
             "conversa",
+            avaliavel=True,
+            tipo_atendimento=TIPO_FLUXO_GUIADO,
         )
 
     if st.button(
@@ -525,6 +644,8 @@ elif st.session_state.etapa_atual == "menu_principal":
             "Ajuda com uma compra",
             MENSAGEM_LIMITE_COMPRA,
             "conversa",
+            avaliavel=True,
+            tipo_atendimento=TIPO_ORIENTACAO,
         )
 
     if st.button(
@@ -591,6 +712,9 @@ elif st.session_state.etapa_atual == "menu_escolha":
                 opcao,
                 resposta,
                 "conversa",
+                avaliavel=True,
+                tipo_atendimento=TIPO_FLUXO_GUIADO,
+                eh_recomendacao=True,
             )
 
 

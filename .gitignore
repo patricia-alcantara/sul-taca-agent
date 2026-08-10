@@ -2,3 +2,6 @@
 __pycache__/
 .env
 .DS_Store
+data/qualidade.db
+data/qualidade.db-shm
+data/qualidade.db-wal

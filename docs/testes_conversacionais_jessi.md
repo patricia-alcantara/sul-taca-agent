@@ -796,3 +796,54 @@ Nenhuma fonte foi exibida, nenhuma chamada Gemini foi realizada e a comparação
 A comparação externa ficou delimitada a duas fontes possíveis: o registro interno isolado do produto Sul Taça e, quando fornecida e recuperada com sucesso, uma página externa direta. Comparações sem URL utilizam somente os dados declarados pela pessoa e deixam explícita essa origem.
 
 O prompt principal permanece na versão v1.7. Os ajustes desta rodada ficaram restritos à orquestração, ao isolamento e filtragem de contexto, à renderização e aos prompts específicos de comparação.
+
+# Avaliação e painel de qualidade
+
+Estes cenários podem ser executados localmente sem realizar novas consultas ao
+Gemini, reutilizando uma conversa já carregada ou validando as funções por
+testes automatizados.
+
+1. Confirmar que apresentação, maioridade, nome, menus, bloqueios e erros não
+   exibem controles de avaliação.
+2. Confirmar que recomendações, respostas documentais, comparações e pedidos
+   substantivos de informação exibem apenas Positivo e Negativo.
+3. Confirmar que a orientação de página insuficiente permite avaliação e aparece
+   como `Comparação externa` no painel.
+4. Avaliar uma resposta, provocar reruns e confirmar que há somente um registro
+   e que a primeira escolha não muda.
+5. Confirmar no SQLite que respostas ainda não avaliadas não possuem pergunta,
+   resposta ou avaliação persistidas.
+6. Informar e-mail, telefone, CPF e nome em uma resposta de teste; após avaliar,
+   confirmar que esses valores foram redigidos.
+7. Executar `streamlit run painel_qualidade.py` e conferir os dois blocos, a
+   tabela por tipo de atendimento e a tabela exclusiva de respostas avaliadas.
+
+## Resultado da validação manual funcional
+
+Validação aprovada em 10/08/2026:
+
+1. Apresentação, confirmação de maioridade, identificação e menus não exibiram
+   avaliação.
+2. Uma recomendação exibiu avaliação e foi registrada como `Positivo`.
+3. Um pedido de dados necessário para continuar uma comparação exibiu avaliação
+   e foi registrado como `Negativo`.
+4. Um refresh completo iniciou uma nova sessão Streamlit e retornou a conversa
+   ao começo do fluxo, mantendo o comportamento anterior da aplicação.
+5. Os registros de qualidade permaneceram disponíveis no SQLite após o refresh.
+6. Com duas respostas elegíveis, o painel apresentou duas avaliadas, uma
+   positiva, uma negativa, 50% positivo e 100% de participação.
+7. O uso comercial apresentou uma recomendação e uma comparação, e as tabelas
+   de contexto e detalhe corresponderam aos registros persistidos.
+8. A proteção contra duplicidade em reruns e cliques repetidos permanece coberta
+   pelos testes automatizados, com `message_id` único e atualização condicionada
+   à ausência de avaliação anterior.
+9. O componente `st.feedback` foi rejeitado no reteste manual porque a legenda
+   separada dos polegares clicáveis reduziu a clareza da interação. Ele foi
+   substituído por dois botões nativos compactos e alinhados horizontalmente,
+   primeiro `👍` e depois `👎`. A ordem, o hover visual, o registro e a
+   confirmação `✓ Feedback recebido.` foram aprovados no reteste final. Os
+   tooltips nativos `Gostei` e `Não gostei` estão configurados no código, mas
+   não apareceram no navegador testado; Produto aceitou essa limitação como não
+   bloqueante porque a pergunta, os ícones e o estado de hover tornam a
+   interação suficientemente compreensível. A classificação por extenso
+   permanece no painel.
