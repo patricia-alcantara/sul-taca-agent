@@ -1,3 +1,5 @@
+import re
+
 import streamlit as st
 from dotenv import load_dotenv
 from google import genai
@@ -7,7 +9,19 @@ from busca_semantica import (
     carregar_chunks,
     criar_indice,
     gerar_embeddings,
+    recuperar_contexto,
     responder_pergunta,
+)
+from consulta_url import (
+    atualizar_comparacao_pendente,
+    comparar_dados_fornecidos,
+    comparacao_tem_dados_suficientes,
+    consultar_pagina_vinho,
+    criar_comparacao_pendente,
+    decidir_rota,
+    eh_continuacao_comparacao,
+    extrair_url,
+    identificar_produto_catalogo,
 )
 
 
@@ -57,6 +71,39 @@ MENSAGEM_COTA_INDISPONIVEL = (
     "registrada na conversa. Tente novamente mais tarde."
 )
 
+MENSAGEM_PEDIR_VINHO = (
+    "Me conta qual vinho você quer comparar e mais características:\n"
+    "ex: **uva, safra ou preço**. \n"
+    "Com essas informações, consigo fazer uma comparação inicial. "
+    "Se achar mais fácil, você também pode enviar o link direto da "
+    "página do produto."
+)
+
+MENSAGEM_PEDIR_DETALHES = (
+    "Encontrei o vinho. Me conta o que você quer comparar: pode ser "
+    "**o preço, o sabor, o que você sente ao beber ou com quais pratos "
+    "ele combina**. Me diga o que souber. Se for mais fácil, mande o "
+    "link direto da página."
+)
+
+MENSAGEM_PEDIR_DADOS = (
+    "Entendi. E o que você sabe sobre isso no outro vinho? "
+    "Se for mais fácil, mande o link direto da página."
+)
+
+MENSAGEM_BLOQUEIO_CONSULTA = (
+    "Para proteger seus dados, não acesso páginas externas "
+    "quando a mensagem pode conter informação pessoal ou de "
+    "pedido. Reformule usando somente o nome do vinho e o "
+    "link direto da página do produto."
+)
+
+MENSAGEM_PAGINA_INSUFICIENTE = (
+    "Consegui acessar o site, mas essa página não traz detalhes "
+    "suficientes sobre o vinho. Se puder, envie a página específica "
+    "do rótulo."
+)
+
 def criar_mensagens_iniciais() -> list[dict]:
     return [
         {
@@ -75,6 +122,7 @@ def reiniciar_conversa() -> None:
 
     st.session_state.nome_usuario = None
     st.session_state.etapa_atual = "nome"
+    st.session_state.comparacao_pendente = None
     st.session_state.mensagens = mensagens_iniciais.copy()
     st.session_state.historico = mensagens_iniciais.copy()
 
@@ -105,6 +153,31 @@ def registrar_escolha(
     st.session_state.etapa_atual = proxima_etapa
     st.rerun()
 
+def anexar_fontes(
+    resposta: str,
+    *fontes: str,
+) -> str:
+    fontes_disponiveis = [
+        fonte
+        for fonte in fontes
+        if fonte
+    ]
+
+    if not fontes_disponiveis:
+        return resposta
+
+    return (
+        f"{resposta.strip()}\n---\n"
+        + "\n\n".join(fontes_disponiveis)
+    )
+
+def preparar_markdown(conteudo: str) -> str:
+    return re.sub(
+        r"(?<!\\)R\$",
+        r"R\\$",
+        conteudo,
+    )
+
 @st.cache_resource
 def inicializar_rag():
     cliente = genai.Client()
@@ -118,14 +191,141 @@ def processar_pergunta(pergunta: str) -> None:
     try:
         with st.spinner("Consultando a adega..."):
             cliente, chunks, indice = inicializar_rag()
-
-            resposta = responder_pergunta(
-                pergunta,
-                chunks,
-                indice,
-                st.session_state.historico,
-                cliente,
+            rota = decidir_rota(pergunta, chunks)
+            comparacao_pendente = (
+                st.session_state.comparacao_pendente
             )
+            pergunta_consulta = pergunta
+
+            if comparacao_pendente and extrair_url(pergunta):
+                pergunta_consulta = (
+                    "Compare "
+                    f"{comparacao_pendente['produto_sul_taca']} "
+                    "com "
+                    f"{comparacao_pendente['vinho_externo']}: "
+                    f"{pergunta}"
+                )
+                rota = decidir_rota(
+                    pergunta_consulta,
+                    chunks,
+                )
+
+            if rota == "pedir_detalhes":
+                comparacao_pendente = criar_comparacao_pendente(
+                    pergunta,
+                    chunks,
+                )
+                atualizar_comparacao_pendente(
+                    comparacao_pendente,
+                    pergunta,
+                )
+                st.session_state.comparacao_pendente = (
+                    comparacao_pendente
+                )
+
+            if comparacao_pendente and (
+                rota == "pedir_detalhes"
+                or (
+                    rota not in ("url", "hibrida", "bloquear_url")
+                    and eh_continuacao_comparacao(pergunta)
+                )
+            ):
+                if rota != "pedir_detalhes":
+                    atualizar_comparacao_pendente(
+                        comparacao_pendente,
+                        pergunta,
+                    )
+
+                if not comparacao_tem_dados_suficientes(
+                    comparacao_pendente
+                ):
+                    resposta = (
+                        MENSAGEM_PEDIR_DADOS
+                        if comparacao_pendente["criterios"]
+                        else MENSAGEM_PEDIR_DETALHES
+                    )
+                else:
+                    produto = comparacao_pendente[
+                        "produto_sul_taca"
+                    ]
+                    contexto, fontes_internas = recuperar_contexto(
+                        pergunta_consulta,
+                        chunks,
+                        indice,
+                        cliente,
+                        produto,
+                    )
+                    resposta = comparar_dados_fornecidos(
+                        comparacao_pendente,
+                        contexto,
+                        cliente,
+                    )
+                    resposta = anexar_fontes(
+                        resposta,
+                        fontes_internas,
+                    )
+                    st.session_state.comparacao_pendente = None
+            elif rota == "pedir_vinho":
+                st.session_state.comparacao_pendente = None
+                resposta = MENSAGEM_PEDIR_VINHO
+            elif (
+                comparacao_pendente
+                and rota not in ("url", "hibrida")
+            ):
+                st.session_state.comparacao_pendente = None
+                resposta = responder_pergunta(
+                    pergunta,
+                    chunks,
+                    indice,
+                    st.session_state.historico,
+                    cliente,
+                )
+            elif rota == "bloquear_url":
+                resposta = MENSAGEM_BLOQUEIO_CONSULTA
+            elif rota in ("url", "hibrida"):
+                contexto = ""
+                fontes_internas = ""
+
+                if rota == "hibrida":
+                    produto = (
+                        comparacao_pendente["produto_sul_taca"]
+                        if comparacao_pendente
+                        else identificar_produto_catalogo(
+                            pergunta_consulta,
+                            chunks,
+                        )
+                    )
+                    contexto, fontes_internas = recuperar_contexto(
+                        pergunta,
+                        chunks,
+                        indice,
+                        cliente,
+                        produto,
+                    )
+
+                resposta_url, fonte_externa = consultar_pagina_vinho(
+                    pergunta_consulta,
+                    cliente,
+                    contexto,
+                )
+
+                if not resposta_url or not fonte_externa:
+                    resposta = MENSAGEM_PAGINA_INSUFICIENTE
+                else:
+                    resposta = anexar_fontes(
+                        resposta_url,
+                        fontes_internas,
+                        fonte_externa,
+                    )
+                    st.session_state.comparacao_pendente = None
+            else:
+                resposta = responder_pergunta(
+                    pergunta,
+                    chunks,
+                    indice,
+                    st.session_state.historico,
+                    cliente,
+                )
 
     except errors.APIError as erro:
         if erro.code != 429:
@@ -154,12 +354,18 @@ def exibir_resposta_jessi(conteudo: str) -> None:
     ):
         resposta, fonte = partes
 
-        st.markdown(resposta.strip())
+        st.markdown(
+            preparar_markdown(resposta.strip())
+        )
 
-        with st.expander("Ver fonte consultada"):
-            st.markdown(fonte.strip())
+        with st.expander("Ver fontes consultadas"):
+            st.markdown(
+                preparar_markdown(fonte.strip())
+            )
     else:
-        st.markdown(conteudo)
+        st.markdown(
+            preparar_markdown(conteudo)
+        )
 
 st.title("Sul Taça")
 st.caption("Encontre o vinho certo para cada momento.")
@@ -213,6 +419,7 @@ if st.session_state.acesso_maioridade is False:
 chaves_da_conversa = (
     "nome_usuario",
     "etapa_atual",
+    "comparacao_pendente",
     "mensagens",
     "historico",
 )

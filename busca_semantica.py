@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 import faiss
 import numpy as np
@@ -12,6 +13,7 @@ from ler_documentos import (
 )
 
 DIMENSAO_EMBEDDING = 768
+PADRAO_CODIGO_PRODUTO = re.compile(r"\(ST-\d{3}\)")
 
 ARQUIVO_PROMPT = (
     Path(__file__).parent
@@ -109,24 +111,92 @@ def gerar_embedding_pergunta(
 
     return vetor
 
-def montar_contexto(
-    chunks: list[dict],
-    posicoes: np.ndarray,
+def isolar_registro_produto(
+    texto: str,
+    produto: str,
 ) -> str:
+    linhas = texto.splitlines()
+    inicio = next(
+        (
+            indice
+            for indice, linha in enumerate(linhas)
+            if produto.casefold() in linha.casefold()
+            and PADRAO_CODIGO_PRODUTO.search(linha)
+        ),
+        None,
+    )
+
+    if inicio is None:
+        return ""
+
+    fim = next(
+        (
+            indice
+            for indice in range(inicio + 1, len(linhas))
+            if PADRAO_CODIGO_PRODUTO.search(linhas[indice])
+        ),
+        len(linhas),
+    )
+
+    return "\n".join(linhas[inicio:fim]).strip()
+
+def recuperar_contexto(
+    pergunta: str,
+    chunks: list[dict],
+    indice,
+    cliente,
+    produto: str = "",
+) -> tuple[str, str]:
+    if produto:
+        posicoes = [
+            indice_chunk
+            for indice_chunk, chunk in enumerate(chunks)
+            if produto.casefold() in chunk["texto"].casefold()
+        ]
+    else:
+        vetor_pergunta = gerar_embedding_pergunta(
+            pergunta,
+            cliente,
+        )
+        _, resultado = indice.search(vetor_pergunta, k=3)
+        posicoes = resultado[0]
+
     trechos = []
+    fontes = {}
 
-    for posicao in posicoes[0]:
+    for posicao in posicoes:
         chunk = chunks[posicao]
+        texto = chunk["texto"]
 
-        trecho = (
+        if produto:
+            texto = isolar_registro_produto(
+                texto,
+                produto,
+            )
+
+            if not texto:
+                continue
+
+        trechos.append(
             f"Fonte: {chunk['documento']}, "
             f"página {chunk['pagina']}\n"
-            f"{chunk['texto']}"
+            f"{texto}"
         )
+        fontes[
+            (chunk["documento"], chunk["pagina"])
+        ] = None
 
-        trechos.append(trecho)
+    contexto = "\n\n---\n\n".join(trechos)
+    itens_fontes = [
+        f"- `{documento}`, página {pagina}"
+        for documento, pagina in fontes
+    ]
+    fontes_formatadas = (
+        "**Fontes Sul Taça**\n\n"
+        + "\n".join(itens_fontes)
+    )
 
-    return "\n\n---\n\n".join(trechos)
+    return contexto, fontes_formatadas
 
 def gerar_resposta(
     pergunta: str,
@@ -170,9 +240,8 @@ conversa. Use os documentos somente para afirmações
 explicitamente sustentadas pelos trechos recuperados.
 
 Quando utilizar uma informação factual dos documentos,
-indique ao final somente o documento e a página que
-sustentam diretamente essa informação. Não cite uma fonte
-apenas relacionada ao assunto.
+não crie uma lista de fontes na resposta. A aplicação exibirá
+diretamente os documentos e páginas dos trechos recuperados.
 """
 
     resultado = cliente.models.generate_content(
@@ -189,17 +258,17 @@ def responder_pergunta(
     historico: list[dict],
     cliente,
 ) -> str:
-    vetor_pergunta = gerar_embedding_pergunta(
+    contexto, fontes = recuperar_contexto(
         pergunta,
+        chunks,
+        indice,
         cliente,
     )
-    _, posicoes = indice.search(vetor_pergunta, k=3)
-
-    contexto = montar_contexto(chunks, posicoes)
-
-    return gerar_resposta(
+    resposta = gerar_resposta(
         pergunta,
         contexto,
         historico,
         cliente,
     )
+
+    return f"{resposta.strip()}\n---\n{fontes}"

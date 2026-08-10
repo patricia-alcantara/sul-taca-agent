@@ -611,3 +611,188 @@ Na v1.6, a Jessi concentrou a resposta no comportamento da pessoa, repetiu uma l
 ### Observação de baixa prioridade
 
 Foi observada repetição da chamada comercial nos turnos. O comportamento não comprometeu os critérios avaliados e não bloqueia a aprovação.
+
+## Teste 14 — Comparação externa controlada
+
+**Data da rodada:** 09/08/2026
+
+**Prompt:** v1.7, sem alteração nesta rodada
+
+**Interface:** Streamlit
+
+**Objetivo:** permitir comparações entre um produto da Sul Taça e um vinho externo sem abrir uma busca geral na internet, preservando a fidelidade das fontes e a continuidade entre turnos.
+
+### Critérios de aceite
+
+- uma comparação com produto Sul Taça e URL direta deve usar o registro interno correspondente e somente o conteúdo recuperado da página externa;
+- quando houver dois rótulos, mas faltarem dados externos, a Jessi deve perguntar o que a pessoa quer comparar e oferecer o envio do link;
+- produto Sul Taça e vinho externo devem ser preservados entre turnos;
+- uma URL enviada isoladamente durante uma comparação pendente deve continuar pela rota híbrida;
+- o fluxo deve compreender preço, harmonização e perfil sensorial expresso por palavras como sabor, gosto, aroma, leve, encorpado, frutado, seco ou doce;
+- uma informação insuficiente, como “ele também é Merlot”, não deve gerar tabela ou comparação artificial;
+- a Jessi não deve transferir atributos, misturar produtos do mesmo chunk ou completar dados externos ausentes;
+- a resposta deve mostrar somente os critérios solicitados;
+- dados fornecidos pela pessoa devem ser identificados como **Informado por você**, sem fonte externa;
+- as fontes internas devem conter somente documento e página do produto Sul Taça usado;
+- a fonte externa deve aparecer somente quando a URL for recuperada com sucesso;
+- página genérica ou insuficiente deve gerar pedido pela página específica, sem comparação inventada;
+- comparação concluída deve limpar o estado, uma nova comparação deve substituir a anterior e mudança de assunto deve limpar a pendência;
+- a resposta deve trazer síntese útil, tabela somente quando houver diferenças relevantes e valores `R$` renderizados normalmente.
+
+### Fora do escopo do MVP
+
+- busca aberta na internet;
+- descoberta automática da página do produto;
+- navegação pelos links internos de um site;
+- comparação entre três ou mais vinhos;
+- persistência da comparação entre sessões;
+- verificação externa dos dados digitados pela pessoa.
+
+### Investigação técnica
+
+A implementação inicial tentou utilizar Google Search Grounding. O primeiro modelo avaliado, `gemini-2.5-flash`, retornou indisponibilidade para a conta.
+
+O `gemini-2.5-flash-lite` apareceu em `client.models.list()` com suporte a `generateContent`, mas uma chamada mínima, mesmo sem ferramenta, retornou erro 404 informando que o modelo não estava disponível para novos usuários. Por isso, a falha ocorria antes do Search Grounding.
+
+Foi decidido não adicionar billing e não integrar outro provedor externo ao MVP. APIs não oficiais e scraping de buscadores também foram descartados.
+
+A prova técnica seguinte utilizou URL Context com `gemini-3.6-flash`. A ferramenta recuperou com sucesso uma página pública direta de produto, retornou `URL_RETRIEVAL_STATUS_SUCCESS` e permitiu extrair os dados presentes nela.
+
+A funcionalidade foi então reposicionada corretamente: ela analisa uma página fornecida pela pessoa e não realiza busca web, descoberta automática de páginas ou navegação por links internos.
+
+### Testes manuais e evolução
+
+#### Comparação direta por URL — Pedra Andina × Casillero
+
+O URL Context funcionou e as fontes internas e externas foram apresentadas separadamente.
+
+A primeira resposta, porém, atribuiu ao Casillero del Diablo uma classificação vegana que existia somente no registro interno do Pedra Andina. A página externa não declarava veganismo.
+
+A correção passou a omitir certificações não solicitadas, remover esses campos do contexto padrão e proibir a transferência de atributos entre os produtos. Quando o tema for perguntado diretamente, um dado externo ausente deve ser apresentado como “Não informado na página consultada”.
+
+No reteste final, a alucinação sobre veganismo não apareceu. A fonte interna ficou restrita a `sultaca_06_catalogo_de_vinhos.pdf`, página 4, e a fonte externa correspondeu à página consultada.
+
+**Status:** aprovado manualmente.
+
+#### Página inicial genérica
+
+A URL foi acessada, mas a página não continha detalhes suficientes sobre um rótulo. A Jessi não inventou uma comparação e pediu a página específica do produto.
+
+**Status:** aprovado manualmente.
+
+#### Comparação sem URL
+
+A Jessi reconheceu o nome do vinho externo e pediu critérios adicionais ou um link direto. A microcopy foi revisada para perguntar sobre preço, sabor, experiência ao beber ou harmonização.
+
+**Status:** aprovado manualmente.
+
+#### Perda de contexto entre turnos
+
+Depois que a pessoa forneceu preço e harmonização, a Jessi afirmou que não encontrou o Pedra Andina no catálogo, apesar de o produto estar documentado.
+
+A causa não estava no catálogo nem no modelo. O produto identificado no primeiro turno não era preservado de forma estruturada, e a continuação fazia uma recuperação FAISS usando apenas a mensagem atual.
+
+Foi criado `comparacao_pendente`, preservando produto Sul Taça, vinho externo, critérios reconhecidos, dados externos e texto original informado pela pessoa. A continuação passou a recuperar deterministicamente o registro interno pelo produto preservado.
+
+**Status:** continuidade aprovada manualmente; estado e limpeza complementares aprovados offline.
+
+#### Mistura de produtos no mesmo chunk
+
+O Pedra Andina apareceu com dois preços e com harmonizações do Noite de Mendoza. A página 4 continha vários produtos no mesmo chunk, e o filtro por critérios coletava todas as linhas de preço e harmonização antes de separar os registros.
+
+Foi criado um isolamento determinístico delimitado pelos códigos `ST-*`. O registro passa a terminar antes do próximo produto, e somente depois são filtrados os critérios ativos.
+
+O reteste posterior apresentou apenas `R$ 94,90` e a harmonização com cogumelos grelhados, massas intensas e queijos curados.
+
+**Status:** aprovado manualmente.
+
+#### Renderização de moeda
+
+Duas ocorrências de `R$` foram interpretadas pelo Markdown como delimitadores matemáticos. O texto apareceu verde e com tamanho menor.
+
+A aplicação passou a escapar centralmente `R$` como `R\$` antes de enviar respostas ao `st.markdown`, sem alterar o valor exibido e sem depender do modelo.
+
+O reteste posterior apresentou os valores monetários normalmente.
+
+**Status:** aprovado manualmente.
+
+#### Preço e harmonização — Noite de Mendoza × Concha y Toro
+
+A comparação entre Noite de Mendoza e Concha y Toro Reservado Cabernet Sauvignon apresentou somente preço e harmonização. O valor `R$` foi renderizado normalmente, e apenas `sultaca_06_catalogo_de_vinhos.pdf`, página 4, apareceu como fonte interna.
+
+A síntese foi orientada à escolha e a resposta permaneceu honesta, embora excessivamente neutra para uma assistente comercial da Sul Taça.
+
+**Status:** aprovado manualmente.
+
+#### Perfil sensorial — Horizonte 30 × Santa Helena
+
+O Horizonte 30 foi comparado com o Santa Helena Reservado Merlot. Os dados externos foram identificados como informados pela pessoa, e somente o campo Perfil foi utilizado.
+
+A resposta exibiu apenas `sultaca_06_catalogo_de_vinhos.pdf`, página 3, como fonte interna. A síntese foi orientada à escolha. Houve repetição leve entre síntese e tabela, sem comprometer o resultado.
+
+**Status:** aprovado manualmente.
+
+#### URL isolada como continuação — Horizonte 30 × Casillero
+
+A continuidade e a consulta externa funcionaram, mas as fontes internas incluíram catálogo página 4, guia de entregas página 1 e catálogo página 3.
+
+A rota já era decidida com uma pergunta enriquecida. A falha ocorria depois: a identificação do produto voltava a usar a mensagem original, que continha somente a URL, e caía na recuperação genérica.
+
+A correção passou a usar diretamente `produto_sul_taca` de `comparacao_pendente`. No reteste manual, os dois rótulos foram preservados e a URL isolada retomou a comparação híbrida. Apenas uma fonte interna foi exibida: `sultaca_06_catalogo_de_vinhos.pdf`, página 3, correspondente ao Horizonte 30 Merlot. A fonte externa também foi preservada.
+
+A síntese explicou para qual preferência cada vinho fazia mais sentido.
+
+**Status:** aprovado manualmente.
+
+#### Informação insuficiente
+
+Na continuação “Ele também é Merlot”, nenhuma tabela foi criada. A Jessi pediu qual aspecto a pessoa gostaria de comparar e manteve a pendência.
+
+**Status:** aprovado manualmente.
+
+#### Critério informado sem dado externo
+
+O fluxo testado foi:
+
+1. “Compare o Horizonte 30 Merlot 2024 com o Santa Helena Reservado Merlot.”
+2. “Quero comparar o sabor.”
+
+O primeiro turno criou corretamente a comparação pendente, e perfil foi reconhecido como critério. A palavra “sabor” não foi tratada como descrição do vinho externo, por isso nenhuma comparação ou tabela foi gerada.
+
+A Jessi respondeu: “Entendi. E o que você sabe sobre isso no outro vinho? Se for mais fácil, mande o link direto da página.”
+
+Nenhuma fonte foi exibida, nenhuma chamada Gemini foi realizada e a comparação permaneceu pendente.
+
+**Status:** aprovado manualmente.
+
+### Matriz final de critérios
+
+| Critério de aceite | Status |
+|---|---|
+| URL direta usa o registro Sul Taça correspondente e somente a página externa recuperada | Aprovado manualmente |
+| Dois rótulos sem dados externos geram pedido de critérios ou link | Aprovado manualmente |
+| Produto Sul Taça e vinho externo são preservados entre turnos | Aprovado manualmente |
+| URL isolada continua pela rota híbrida | Aprovado manualmente |
+| Preço, harmonização e perfil sensorial são compreendidos | Aprovado manualmente |
+| Informação insuficiente não gera tabela artificial | Aprovado manualmente |
+| Menção de um critério sem dado correspondente não inicia a comparação | Aprovado manualmente |
+| Atributos não são transferidos e produtos do mesmo chunk não são misturados | Aprovado manualmente |
+| Somente os critérios solicitados são apresentados | Aprovado offline |
+| Dados digitados aparecem como Informado por você e sem fonte externa | Aprovado manualmente |
+| Fonte interna contém somente documento e página do produto usado | Aprovado manualmente |
+| Fonte externa aparece somente após recuperação bem-sucedida | Aprovado manualmente |
+| Página genérica ou insuficiente pede a página específica | Aprovado manualmente |
+| Estado é limpo ou substituído nos momentos definidos | Aprovado offline |
+| Síntese útil, tabela relevante e `R$` renderizado normalmente | Aprovado manualmente |
+
+### Backlog de baixa prioridade
+
+- omitir a tabela quando houver somente um critério e a síntese já comunicar toda a comparação;
+- criar recuperação comercial quando o vinho externo atender melhor à preferência, oferecendo outra opção da Sul Taça sem desmerecer o concorrente;
+- antes de implementar essa recuperação, garantir que os critérios permaneçam disponíveis caso a pessoa responda apenas “sim”.
+
+### Resultado da rodada
+
+A comparação externa ficou delimitada a duas fontes possíveis: o registro interno isolado do produto Sul Taça e, quando fornecida e recuperada com sucesso, uma página externa direta. Comparações sem URL utilizam somente os dados declarados pela pessoa e deixam explícita essa origem.
+
+O prompt principal permanece na versão v1.7. Os ajustes desta rodada ficaram restritos à orquestração, ao isolamento e filtragem de contexto, à renderização e aos prompts específicos de comparação.
