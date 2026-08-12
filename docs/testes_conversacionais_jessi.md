@@ -797,9 +797,11 @@ A comparação externa ficou delimitada a duas fontes possíveis: o registro int
 
 O prompt principal permanece na versão v1.7. Os ajustes desta rodada ficaram restritos à orquestração, ao isolamento e filtragem de contexto, à renderização e aos prompts específicos de comparação.
 
-# Avaliação e painel de qualidade
+# Avaliação e painel de qualidade — registro histórico v1
 
-Estes cenários podem ser executados localmente sem realizar novas consultas ao
+Os itens abaixo registram a validação do painel anterior. Eles são preservados
+como histórico e não descrevem integralmente a estrutura atual do painel v2.
+Os cenários podem ser executados localmente sem realizar novas consultas ao
 Gemini, reutilizando uma conversa já carregada ou validando as funções por
 testes automatizados.
 
@@ -848,6 +850,33 @@ Validação aprovada em 10/08/2026:
    interação suficientemente compreensível. A classificação por extenso
    permanece no painel.
 
+## Reteste visual e de elegibilidade
+
+Validação concluída em 11/08/2026:
+
+- o cabeçalho editorial apresentou `Sul Taça` e o subtítulo uma única vez,
+  preservando a cor roxa e o fluxo da aplicação;
+- os botões dos três menus ficaram com 224 px, mesma largura e alinhamento
+  uniforme entre ícones e labels;
+- em viewport de 360 px, menu principal, submenu de escolha e submenu de
+  políticas começaram no mesmo eixo do texto da Jessi, em 72 px, e não
+  produziram overflow horizontal;
+- as cinco perguntas locais do submenu de escolha e a pergunta “Qual vinho
+  você tem em mente?” deixaram de exibir avaliação e de criar respostas
+  elegíveis;
+- “Ajuda com uma compra” permaneceu avaliável, assim como recomendações,
+  comparações e demais respostas substantivas;
+- os testes offline confirmaram que uma indicação posterior de produto
+  específico, como o Doce Pampa, continua elegível e contabilizada como
+  recomendação.
+
+### Backlog — navegação de retorno
+
+- oferecer **Voltar** como opção visível nos estados aplicáveis;
+- reconhecer deterministicamente “voltar”, “menu anterior” e “menu principal”;
+- não chamar RAG, exibir fontes ou criar avaliação em ações de navegação;
+- preservar e restaurar corretamente o estado anterior.
+
 ## Smoke test do deploy público
 
 **Ambiente:** Streamlit Community Cloud
@@ -881,3 +910,48 @@ Malbec.
 O tooltip nativo não apareceu no navegador usado no teste local, apesar de
 estar configurado, mas funcionou no Streamlit Community Cloud. Recomendação,
 comparação externa, fontes e avaliação estão aprovadas no deploy público.
+
+## Aceite manual — checkpoint 1 de métricas v2
+
+Validação concluída em 11/08/2026:
+
+- recomendação guiada e recomendação direta foram classificadas corretamente;
+- a mudança de recomendação para privacidade descartou a tarefa anterior sem
+  gerar falsa recomendação;
+- página externa insuficiente permaneceu avaliável, sem recomendação ou
+  comparação realizada;
+- comparação concluída contou simultaneamente como comparação e recomendação
+  quando houve indicação concreta de produto Sul Taça.
+
+Indicadores ao final do aceite: taxa de participação de 61,1%, quatro
+recomendações realizadas e cinco comparações realizadas.
+
+**Status do checkpoint 1:** aprovado manualmente.
+
+### Forma de atendimento nas jornadas guiadas
+
+A classificação foi ajustada para preservar a origem da tarefa nas novas
+interações v2. Continuações como “macarronada” e “ela gosta de vinho tinto
+doce” passam a ser registradas como `fluxo_guiado`, mesmo quando a resposta usa
+a base interna. O mecanismo continua registrando separadamente como a resposta
+foi produzida.
+
+A precedência ficou congelada em: comparação externa, orientação sem consulta,
+fluxo guiado para tarefa iniciada no menu e catálogo/documentos para as demais
+perguntas diretas. Os registros históricos migrados não são reclassificados.
+
+## Aceite manual final — painel de métricas v2
+
+Validação concluída em 12/08/2026, com duas execuções dos critérios de aceite.
+Em ambas foram confirmados:
+
+- registro de uma interação;
+- forma de atendimento `Fluxo guiado`;
+- mecanismo `Base interna Sul Taça`;
+- resultado `Recomendação`;
+- atualização das contagens gerais e por forma sem duplicidade observada.
+
+Nenhuma falha bloqueante foi identificada. O risco residual de cenários não
+cobertos foi aceito para o estágio atual do MVP.
+
+**Status:** validação manual final aprovada.

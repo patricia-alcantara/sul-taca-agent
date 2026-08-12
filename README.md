@@ -51,7 +51,7 @@ flowchart LR
 
 Na inicialização, os PDFs são extraídos e divididos em chunks de 1.000 caracteres, com sobreposição de 300. O modelo `gemini-embedding-001` gera vetores de 768 dimensões, normalizados antes de serem armazenados em um **índice vetorial FAISS em memória**.
 
-A cada pergunta, a aplicação recupera os três chunks semanticamente mais próximos. O prompt da Jessi v1.6 recebe esses candidatos, a pergunta e as últimas seis mensagens da sessão. O modelo `gemini-3.6-flash` gera a resposta e indica somente a fonte que sustenta diretamente a informação utilizada. A preparação dos documentos, embeddings e índice é mantida em cache pelo Streamlit durante a execução.
+A cada pergunta, a aplicação recupera os três chunks semanticamente mais próximos. O prompt da Jessi v1.7 recebe esses candidatos, a pergunta e as últimas seis mensagens da sessão. O modelo `gemini-3.6-flash` gera a resposta e indica somente a fonte que sustenta diretamente a informação utilizada. A preparação dos documentos, embeddings e índice é mantida em cache pelo Streamlit durante a execução.
 
 ### Comparação externa controlada
 
@@ -136,11 +136,15 @@ reinícios ou recriações da instância. O painel não é publicado porque não
 autenticação. Um uso de produção exigiria banco persistente compartilhado e
 controle de acesso.
 
-As contagens de recomendações e comparações descrevem o uso do atendimento; não
-representam compra, conversão, receita ou intenção comercial confirmada. O tema
-escuro é aplicado somente ao processo local do painel por parâmetros oficiais
-do Streamlit e não altera o tema claro da Jessi. O texto claro e o roxo de
-destaque têm contraste WCAG AA sobre os fundos principal e secundário.
+O painel usa a persistência estruturada v2 para separar qualidade, forma de
+atendimento, mecanismo técnico e resultado entregue. Ele mostra recomendações,
+comparações e respostas que realizaram ambas, além do funcionamento registrado
+e dos detalhes sanitizados das respostas avaliadas. Essas contagens descrevem o
+uso do atendimento; não representam compra, conversão, receita ou intenção
+comercial confirmada. O tema escuro é aplicado somente ao processo local do
+painel por parâmetros oficiais do Streamlit e não altera o tema claro da Jessi.
+O texto claro e o roxo de destaque têm contraste WCAG AA sobre os fundos
+principal e secundário.
 
 ## Base de conhecimento
 
@@ -180,7 +184,7 @@ As respostas são geradas em linguagem natural e podem variar. Os exemplos abaix
 ## Documentação e testes
 
 - [Persona e diretrizes da Jessi](docs/persona_jessi_sul_taca.md)
-- [Prompt do sistema v1.6](prompts/prompt_jessi_sul_taca.md)
+- [Prompt do sistema v1.7](prompts/prompt_jessi_sul_taca.md)
 - [Testes conversacionais e de interface](docs/testes_conversacionais_jessi.md)
 - [Perguntas Frequentes em formato editável](docs/sultaca_03_perguntas_frequentes.md)
 
