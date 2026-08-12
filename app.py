@@ -6,6 +6,22 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import errors
 
+from atendimento import (
+    EtapaFalha,
+    EtapaTarefa,
+    Intencao,
+    Mecanismo,
+    NaturezaResposta,
+    OrigemTarefa,
+    Resultado,
+    StatusResultado,
+    TipoAtendimento,
+    atualizar_tarefa_por_mensagem,
+    concluir_tarefa,
+    criar_envelope_resultado,
+    iniciar_tarefa,
+    limpar_tarefa,
+)
 from busca_semantica import (
     carregar_chunks,
     criar_indice,
@@ -30,10 +46,9 @@ from qualidade import (
     TIPO_FLUXO_GUIADO,
     TIPO_ORIENTACAO,
     avaliar_resposta,
-    eh_pergunta_de_recomendacao,
     obter_avaliacao,
+    registrar_interacao,
     registrar_resposta_elegivel,
-    resposta_eh_avaliavel,
 )
 
 
@@ -199,6 +214,7 @@ def reiniciar_conversa() -> None:
     st.session_state.nome_usuario = None
     st.session_state.etapa_atual = "nome"
     st.session_state.comparacao_pendente = None
+    st.session_state.tarefa_atual = None
     st.session_state.mensagens = mensagens_iniciais.copy()
     st.session_state.historico = mensagens_iniciais.copy()
 
@@ -213,13 +229,39 @@ def adicionar_mensagem(
     tipo_atendimento: str = "",
     eh_recomendacao: bool = False,
     eh_comparacao: bool = False,
+    envelope=None,
+    task_id: str | None = None,
 ) -> None:
     mensagem = {
         "papel": papel,
         "conteudo": conteudo,
     }
 
-    if papel == "jessi" and avaliavel:
+    if papel == "jessi" and envelope is not None:
+        message_id = str(uuid4())
+        mensagem["message_id"] = message_id
+        mensagem["avaliavel"] = envelope.elegivel
+        if envelope.elegivel:
+            mensagem.update(
+                {
+                    "pergunta_origem": pergunta_origem,
+                    "rota_tecnica": envelope.rota_tecnica,
+                    "tipo_atendimento": tipo_atendimento,
+                    "eh_recomendacao": (
+                        Resultado.RECOMENDACAO in envelope.resultados
+                    ),
+                    "eh_comparacao": (
+                        Resultado.COMPARACAO in envelope.resultados
+                    ),
+                }
+            )
+        registrar_interacao(
+            message_id=message_id,
+            session_id=st.session_state.session_id,
+            envelope=envelope,
+            task_id=task_id,
+        )
+    elif papel == "jessi" and avaliavel:
         mensagem.update(
             {
                 "message_id": str(uuid4()),
@@ -294,6 +336,28 @@ def preparar_markdown(conteudo: str) -> str:
         conteudo,
     )
 
+
+TIPOS_ATENDIMENTO_DOMINIO = {
+    TIPO_CATALOGO: TipoAtendimento.CATALOGO_DOCUMENTOS,
+    TIPO_COMPARACAO: TipoAtendimento.COMPARACAO_EXTERNA,
+    TIPO_FLUXO_GUIADO: TipoAtendimento.FLUXO_GUIADO,
+    TIPO_ORIENTACAO: TipoAtendimento.ORIENTACAO_SEM_CONSULTA,
+}
+
+
+def mecanismo_da_rota(rota: str) -> Mecanismo:
+    if rota == "url":
+        return Mecanismo.URL_CONTEXT
+    if rota == "hibrida":
+        return Mecanismo.HIBRIDO
+    if rota in {
+        "pedir_detalhes",
+        "pedir_vinho",
+        "bloquear_url",
+    }:
+        return Mecanismo.REGRA_LOCAL
+    return Mecanismo.RAG_INTERNO
+
 @st.cache_resource
 def inicializar_rag():
     cliente = genai.Client()
@@ -304,10 +368,25 @@ def inicializar_rag():
     return cliente, chunks, indice
 
 def processar_pergunta(pergunta: str) -> None:
-    categoria_resposta = "conteudo"
-    tipo_atendimento = TIPO_CATALOGO
-    eh_recomendacao = eh_pergunta_de_recomendacao(pergunta)
-    eh_comparacao = False
+    natureza = NaturezaResposta.SUBSTANTIVA
+    status = StatusResultado.SUCESSO
+    participantes_comparacao = ()
+    tarefa_anterior = st.session_state.tarefa_atual
+    tarefa = atualizar_tarefa_por_mensagem(
+        tarefa_anterior,
+        pergunta,
+    )
+    tipo_atendimento = (
+        TIPO_FLUXO_GUIADO
+        if tarefa and tarefa.origem == OrigemTarefa.MENU_GUIADO
+        else TIPO_CATALOGO
+    )
+    st.session_state.tarefa_atual = tarefa
+    if (
+        tarefa_anterior
+        and (tarefa is None or tarefa.task_id != tarefa_anterior.task_id)
+    ):
+        st.session_state.comparacao_pendente = None
 
     try:
         with st.spinner("Consultando a adega..."):
@@ -352,7 +431,6 @@ def processar_pergunta(pergunta: str) -> None:
                 )
             ):
                 tipo_atendimento = TIPO_COMPARACAO
-                eh_comparacao = True
 
                 if rota != "pedir_detalhes":
                     atualizar_comparacao_pendente(
@@ -363,6 +441,7 @@ def processar_pergunta(pergunta: str) -> None:
                 if not comparacao_tem_dados_suficientes(
                     comparacao_pendente
                 ):
+                    natureza = NaturezaResposta.ESCLARECIMENTO
                     resposta = (
                         MENSAGEM_PEDIR_DADOS
                         if comparacao_pendente["criterios"]
@@ -372,6 +451,10 @@ def processar_pergunta(pergunta: str) -> None:
                     produto = comparacao_pendente[
                         "produto_sul_taca"
                     ]
+                    participantes_comparacao = (
+                        produto,
+                        comparacao_pendente["vinho_externo"],
+                    )
                     contexto, fontes_internas = recuperar_contexto(
                         pergunta_consulta,
                         chunks,
@@ -393,7 +476,7 @@ def processar_pergunta(pergunta: str) -> None:
                 st.session_state.comparacao_pendente = None
                 resposta = MENSAGEM_PEDIR_VINHO
                 tipo_atendimento = TIPO_COMPARACAO
-                eh_comparacao = True
+                natureza = NaturezaResposta.ESCLARECIMENTO
             elif (
                 comparacao_pendente
                 and rota not in ("url", "hibrida")
@@ -408,12 +491,13 @@ def processar_pergunta(pergunta: str) -> None:
                 )
             elif rota == "bloquear_url":
                 resposta = MENSAGEM_BLOQUEIO_CONSULTA
-                categoria_resposta = "bloqueio_seguranca"
+                natureza = NaturezaResposta.OPERACIONAL
+                status = StatusResultado.BLOQUEIO_SEGURANCA
             elif rota in ("url", "hibrida"):
                 tipo_atendimento = TIPO_COMPARACAO
-                eh_comparacao = True
                 contexto = ""
                 fontes_internas = ""
+                produto = ""
 
                 if rota == "hibrida":
                     produto = (
@@ -440,8 +524,19 @@ def processar_pergunta(pergunta: str) -> None:
 
                 if not resposta_url or not fonte_externa:
                     resposta = MENSAGEM_PAGINA_INSUFICIENTE
-                    categoria_resposta = "pagina_insuficiente"
+                    natureza = NaturezaResposta.ORIENTACAO_RECUPERACAO
+                    status = StatusResultado.INSUFICIENTE
                 else:
+                    if comparacao_pendente:
+                        participantes_comparacao = (
+                            comparacao_pendente["produto_sul_taca"],
+                            comparacao_pendente["vinho_externo"],
+                        )
+                    elif produto:
+                        participantes_comparacao = (
+                            produto,
+                            extrair_url(pergunta_consulta),
+                        )
                     resposta = anexar_fontes(
                         resposta_url,
                         fontes_internas,
@@ -461,25 +556,74 @@ def processar_pergunta(pergunta: str) -> None:
         if erro.code != 429:
             raise
 
+        envelope = criar_envelope_resultado(
+            texto=MENSAGEM_COTA_INDISPONIVEL,
+            natureza=NaturezaResposta.OPERACIONAL,
+            tipo_atendimento=TIPOS_ATENDIMENTO_DOMINIO[
+                tipo_atendimento
+            ],
+            rota_tecnica="erro_api",
+            mecanismo=Mecanismo.RAG_INTERNO,
+            status=StatusResultado.FALHA_TECNICA,
+            tarefa=tarefa,
+            etapa_falha=EtapaFalha.GERACAO,
+        )
+
+        if tarefa:
+            limpar_tarefa(tarefa)
+            st.session_state.tarefa_atual = None
+
         adicionar_mensagem("usuario", pergunta)
         adicionar_mensagem(
             "jessi",
-            MENSAGEM_COTA_INDISPONIVEL,
+            envelope.texto_exibicao,
             incluir_no_historico=False,
+            pergunta_origem=pergunta,
+            tipo_atendimento=tipo_atendimento,
+            envelope=envelope,
+            task_id=tarefa.task_id if tarefa else None,
         )
         st.session_state.etapa_atual = "conversa"
         st.rerun()
 
+    envelope = criar_envelope_resultado(
+        texto=resposta,
+        natureza=natureza,
+        tipo_atendimento=TIPOS_ATENDIMENTO_DOMINIO[tipo_atendimento],
+        rota_tecnica=rota,
+        mecanismo=mecanismo_da_rota(rota),
+        status=status,
+        tarefa=tarefa,
+        chunks=chunks,
+        participantes_comparacao=participantes_comparacao,
+    )
+
+    if tarefa and (
+        envelope.natureza == NaturezaResposta.SUBSTANTIVA
+        and envelope.status == StatusResultado.SUCESSO
+    ):
+        concluir_tarefa(tarefa)
+        st.session_state.tarefa_atual = None
+    elif tarefa and envelope.status == StatusResultado.BLOQUEIO_SEGURANCA:
+        limpar_tarefa(tarefa)
+        st.session_state.tarefa_atual = None
+
     adicionar_mensagem("usuario", pergunta)
     adicionar_mensagem(
         "jessi",
-        resposta,
-        avaliavel=resposta_eh_avaliavel(categoria_resposta),
+        envelope.texto_exibicao,
+        avaliavel=envelope.elegivel,
         pergunta_origem=pergunta,
         rota_tecnica=rota,
         tipo_atendimento=tipo_atendimento,
-        eh_recomendacao=eh_recomendacao,
-        eh_comparacao=eh_comparacao,
+        eh_recomendacao=(
+            Resultado.RECOMENDACAO in envelope.resultados
+        ),
+        eh_comparacao=(
+            Resultado.COMPARACAO in envelope.resultados
+        ),
+        envelope=envelope,
+        task_id=tarefa.task_id if tarefa else None,
     )
     st.session_state.etapa_atual = "conversa"
     st.rerun()
@@ -602,6 +746,7 @@ chaves_da_conversa = (
     "nome_usuario",
     "etapa_atual",
     "comparacao_pendente",
+    "tarefa_atual",
     "mensagens",
     "historico",
 )
@@ -691,6 +836,11 @@ elif st.session_state.etapa_atual == "menu_principal":
         width=LARGURA_BOTAO_MENU,
         icon=":material/search:",
     ):
+        st.session_state.tarefa_atual = iniciar_tarefa(
+            {Intencao.CONSULTA_CATALOGO_POLITICA},
+            OrigemTarefa.MENU_GUIADO,
+            EtapaTarefa.AGUARDANDO_PRODUTO,
+        )
         registrar_escolha(
             "Tenho um vinho em mente",
             (
@@ -698,8 +848,6 @@ elif st.session_state.etapa_atual == "menu_principal":
                 "Pode escrever o nome ou o que lembra do rótulo."
             ),
             "conversa",
-            avaliavel=True,
-            tipo_atendimento=TIPO_FLUXO_GUIADO,
         )
 
     if menu_principal.button(
@@ -780,13 +928,15 @@ elif st.session_state.etapa_atual == "menu_escolha":
             width=LARGURA_BOTAO_MENU,
             icon=icone,
         ):
+            st.session_state.tarefa_atual = iniciar_tarefa(
+                {Intencao.RECOMENDACAO},
+                OrigemTarefa.MENU_GUIADO,
+                EtapaTarefa.AGUARDANDO_NECESSIDADE,
+            )
             registrar_escolha(
                 opcao,
                 resposta,
                 "conversa",
-                avaliavel=True,
-                tipo_atendimento=TIPO_FLUXO_GUIADO,
-                eh_recomendacao=True,
             )
 
 
@@ -820,6 +970,11 @@ elif st.session_state.etapa_atual == "menu_politicas":
             width=LARGURA_BOTAO_MENU,
             icon=icone,
         ):
+            st.session_state.tarefa_atual = iniciar_tarefa(
+                {Intencao.CONSULTA_CATALOGO_POLITICA},
+                OrigemTarefa.MENU_GUIADO,
+                EtapaTarefa.EM_EXECUCAO,
+            )
             processar_pergunta(pergunta_da_politica)
 
 pergunta = (
