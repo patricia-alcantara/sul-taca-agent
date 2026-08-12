@@ -45,6 +45,8 @@ st.set_page_config(
     layout="centered",
 )
 
+LARGURA_BOTAO_MENU = 224
+
 MENSAGEM_INICIAL = (
     "Oi! Eu sou a **Jessi**, assistente virtual da Sul Taça. "
     "Posso ajudar você a escolher um vinho, tirar dúvidas "
@@ -115,6 +117,68 @@ MENSAGEM_PAGINA_INSUFICIENTE = (
     "suficientes sobre o vinho. Se puder, envie a página específica "
     "do rótulo."
 )
+
+CABECALHO_HTML = """
+<style>
+.sultaca-header {
+    align-items: flex-start;
+    display: flex;
+    gap: clamp(0.75rem, 2vw, 1rem);
+    padding: 0.35rem 0 clamp(1.75rem, 4vw, 2.5rem);
+}
+
+.sultaca-copy {
+    min-width: 0;
+}
+
+.sultaca-title {
+    color: #5A356A;
+    font-family: ui-serif, Georgia, "Times New Roman", serif;
+    font-size: clamp(2.25rem, 8vw, 3.45rem);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.02;
+    margin: 0;
+    overflow-wrap: break-word;
+}
+
+.sultaca-subtitle {
+    color: #26212A;
+    font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-size: clamp(1rem, 2.4vw, 1.125rem);
+    line-height: 1.45;
+    margin: 0.45rem 0 0;
+}
+
+.st-key-sultaca-menu-principal,
+.st-key-sultaca-menu-escolha,
+.st-key-sultaca-menu-politicas {
+    padding-inline-start: 3.5rem;
+}
+
+.st-key-sultaca-menu-principal button,
+.st-key-sultaca-menu-escolha button,
+.st-key-sultaca-menu-politicas button {
+    justify-content: flex-start;
+    text-align: left;
+}
+
+/* Estrutura interna do Streamlit 1.61.1; revalidar ao atualizar. */
+.st-key-sultaca-menu-principal button > div,
+.st-key-sultaca-menu-escolha button > div,
+.st-key-sultaca-menu-politicas button > div {
+    justify-content: flex-start;
+}
+</style>
+<header class="sultaca-header">
+    <div class="sultaca-copy">
+        <h1 class="sultaca-title">Sul Taça</h1>
+        <p class="sultaca-subtitle">
+            Encontre o vinho certo para cada momento.
+        </p>
+    </div>
+</header>
+"""
 
 def criar_mensagens_iniciais() -> list[dict]:
     return [
@@ -483,8 +547,7 @@ def exibir_resposta_jessi(mensagem: dict) -> None:
         ):
             registrar_avaliacao(False)
 
-st.title("🍷 Sul Taça")
-st.caption("Encontre o vinho certo para cada momento.")
+st.html(CABECALHO_HTML)
 
 
 if "acesso_maioridade" not in st.session_state:
@@ -605,10 +668,15 @@ if st.session_state.etapa_atual == "nome":
         )
 
 elif st.session_state.etapa_atual == "menu_principal":
-    if st.button(
+    menu_principal = st.container(
+        key="sultaca-menu-principal",
+        horizontal_alignment="left",
+    )
+
+    if menu_principal.button(
         "Quero ajuda para escolher",
         key="menu_escolher",
-        width="stretch",
+        width=LARGURA_BOTAO_MENU,
         icon=":material/wine_bar:",
     ):
         registrar_escolha(
@@ -617,10 +685,10 @@ elif st.session_state.etapa_atual == "menu_principal":
             "menu_escolha",
         )
 
-    if st.button(
+    if menu_principal.button(
         "Tenho um vinho em mente",
         key="menu_vinho_especifico",
-        width="stretch",
+        width=LARGURA_BOTAO_MENU,
         icon=":material/search:",
     ):
         registrar_escolha(
@@ -634,10 +702,10 @@ elif st.session_state.etapa_atual == "menu_principal":
             tipo_atendimento=TIPO_FLUXO_GUIADO,
         )
 
-    if st.button(
+    if menu_principal.button(
         "Ajuda com uma compra",
         key="menu_ajuda_compra",
-        width="stretch",
+        width=LARGURA_BOTAO_MENU,
         icon=":material/receipt_long:",
     ):
         registrar_escolha(
@@ -648,10 +716,10 @@ elif st.session_state.etapa_atual == "menu_principal":
             tipo_atendimento=TIPO_ORIENTACAO,
         )
 
-    if st.button(
+    if menu_principal.button(
         "Políticas e privacidade",
         key="menu_politicas",
-        width="stretch",
+        width=LARGURA_BOTAO_MENU,
         icon=":material/policy:",
     ):
         registrar_escolha(
@@ -660,10 +728,10 @@ elif st.session_state.etapa_atual == "menu_principal":
             "menu_politicas",
         )
 
-    if st.button(
+    if menu_principal.button(
         "Outras dúvidas e sugestões",
         key="menu_outras_duvidas",
-        width="stretch",
+        width=LARGURA_BOTAO_MENU,
         icon=":material/chat:",
     ):
         registrar_escolha(
@@ -673,6 +741,10 @@ elif st.session_state.etapa_atual == "menu_principal":
         )
 
 elif st.session_state.etapa_atual == "menu_escolha":
+    menu_escolha = st.container(
+        key="sultaca-menu-escolha",
+        horizontal_alignment="left",
+    )
     perguntas_de_escolha = {
         "Para acompanhar um prato": (
             "Qual prato você pretende servir?",
@@ -702,10 +774,10 @@ elif st.session_state.etapa_atual == "menu_escolha":
         opcao,
         (resposta, icone),
     ) in enumerate(perguntas_de_escolha.items()):
-        if st.button(
+        if menu_escolha.button(
             opcao,
             key=f"submenu_escolha_{indice}",
-            width="stretch",
+            width=LARGURA_BOTAO_MENU,
             icon=icone,
         ):
             registrar_escolha(
@@ -719,6 +791,10 @@ elif st.session_state.etapa_atual == "menu_escolha":
 
 
 elif st.session_state.etapa_atual == "menu_politicas":
+    menu_politicas = st.container(
+        key="sultaca-menu-politicas",
+        horizontal_alignment="left",
+    )
     perguntas_de_politicas = {
         "Privacidade e dados": (
             "Quero saber sobre privacidade e uso de dados.",
@@ -738,10 +814,10 @@ elif st.session_state.etapa_atual == "menu_politicas":
         opcao,
         (pergunta_da_politica, icone),
     ) in enumerate(perguntas_de_politicas.items()):
-        if st.button(
+        if menu_politicas.button(
             opcao,
             key=f"submenu_politicas_{indice}",
-            width="stretch",
+            width=LARGURA_BOTAO_MENU,
             icon=icone,
         ):
             processar_pergunta(pergunta_da_politica)
